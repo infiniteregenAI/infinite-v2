@@ -189,7 +189,6 @@ async def get_reserved_agents():
     except Exception as e:
         logger.error(traceback.format_exc())
         return JSONResponse(status_code=500, content={"message": str(e)})
-<<<<<<< Updated upstream
     
 @router.get("/get-all-sessions/{agent_id}")
 async def get_all_sessions(agent_id: str):
@@ -220,7 +219,10 @@ async def get_all_sessions(agent_id: str):
                 
             }
             sessions.append(session)
-=======
+    
+    except ValueError as e:
+        logger.error(traceback.format_exc())
+        return JSONResponse(status_code=400, content={"message": str(e)})
 
 @router.delete("/delete-agent/{agent_id}", response_model=DeleteAgentResponse)
 async def delete_agent(agent_id: str, request: Request):
@@ -249,9 +251,4 @@ async def delete_agent(agent_id: str, request: Request):
         
     except ValueError as e:
         logger.error(traceback.format_exc())
-        return JSONResponse(status_code=400, content={"message": str(e)})
->>>>>>> Stashed changes
-        
-    except Exception as e:
-        logger.error(traceback.format_exc())
-        return JSONResponse(status_code=500, content={"message": str(e)})
+        return JSONResponse(status_code=400, content={"message": str(e)})       
