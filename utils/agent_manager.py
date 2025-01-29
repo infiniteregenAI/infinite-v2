@@ -3,8 +3,6 @@ import json
 import os
 import traceback
 import logging 
-import sqlite3
-import pickle
 
 from phi.agent import Agent
 from phi.tools.hackernews import HackerNews
@@ -43,8 +41,6 @@ class AgentManager:
         self.storage_path = storage_path
         self.team_storage_path = team_storage_path
         self._ensure_storage_exists()
-        self.agent_db_con = sqlite3.connect('tmp/agents.db')
-
 
     def _ensure_storage_exists(self) -> None:
         """Create storage files if they don't exist."""
@@ -122,42 +118,13 @@ class AgentManager:
             show_tool_calls=True,
             add_datetime_to_instructions=True,
             user_id=user_id 
-        )  
-        agent = Agent(
-            name=name,
-            role=role,
-            tools=[self._initialize_tool(tool_name) for tool_name in tools],
-            description=description,
-            instructions=instructions,
-            search_knowledge=True,
-            knowledge_base=PDFUrlKnowledgeBase(
-                urls=urls,
-                vector_db=PgVector(table_name=f"{agent_id}_knowledge", db_url=DB_URL, search_type=SearchType.hybrid)
-            ),
-            show_tool_calls=True,
-            markdown=True,
-            add_datetime_to_instructions=True,
-            user_id=user_id,
-            storage=SqlAgentStorage(table_name=f"{agent_id}_ai_sessions", db_file="tmp/agents_sessions.db"),
-            add_history_to_messages=True,
-            num_history_responses=5,
         )
-        cursor = self.agent_db_con.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS agents (
-                id TEXT PRIMARY KEY,
-                agent BLOB
-            )
-        ''')
-        
-        serialized_agent = pickle.dumps(agent)
-        cursor.execute('INSERT INTO agents (id, agent) VALUES (?, ?)', (f'agent_{agent_id}', serialized_agent))
-        self.agent_db_con.commit()
-        
+
+        # Save to storage
         agents.append(agent_data.dict())
         with open(self.storage_path, 'w') as f:
             json.dump(agents, f, indent=2)
-            
+
         return agent_data
 
     def get_all_agents(self) -> List[Dict]:
@@ -173,12 +140,16 @@ class AgentManager:
     def get_agent_by_id(
         self, 
         agent_id: str,
+        session_id: str = None,
+        user_id: str = None
     ) -> Agent:
         """
         Get an agent by its ID.
         
         Args:
             agent_id (str): ID of the agent to retrieve
+            session_id (str, optional): Session ID for the agent
+            user_id (str, optional): User ID for the agent
             
         Returns:
             Agent: Agent instance or error message if agent not found or an error occurs during initialization      
@@ -189,17 +160,32 @@ class AgentManager:
             
             if not agent_data:
                 raise ValueError(f"Agent with ID '{agent_id}' not found")
-                        
-            cursor = self.agent_db_con.cursor()
-            cursor.execute('SELECT agent FROM agents WHERE id = ?', (f'agent_{agent_id}',))
-            result = cursor.fetchone()
-
-            if result:
-                serialized_agent = result[0] 
-                agent = pickle.loads(serialized_agent) 
-            else:
-                raise ValueError(f"Agent with ID '{agent_id}' not found")
-                            
+            
+            tools = [self._initialize_tool(tool_name) for tool_name in agent_data['tools']]
+            knowledge_base = PDFUrlKnowledgeBase(
+                urls=agent_data['urls'],
+                vector_db=PgVector(table_name=f"{agent_id}_knowledge", db_url=DB_URL, search_type=SearchType.hybrid)
+            )   
+            knowledge_base.load(upsert=True)
+            session_storage = SqlAgentStorage(table_name=f"{agent_id}_ai_sessions", db_file="tmp/agents_sessions.db")
+            
+            agent = Agent(
+                name=agent_data['name'],
+                role=agent_data['role'],
+                tools=tools,
+                description=agent_data['description'],
+                instructions=agent_data['instructions'],
+                search_knowledge=True,
+                knowledge_base=knowledge_base,
+                show_tool_calls=agent_data['show_tool_calls'],
+                markdown=agent_data['markdown'],
+                add_datetime_to_instructions=agent_data['add_datetime_to_instructions'],
+                session_id=session_id,
+                user_id=user_id,
+                storage=session_storage,
+                add_history_to_messages=True,
+                num_history_responses=5,
+            )
             return agent
         except Exception as e:
             logger.error(traceback.format_exc())
@@ -293,7 +279,7 @@ class AgentManager:
             if not team_data:
                 raise ValueError(f"Team with ID '{team_id}' not found")
             
-            agents = [self.get_agent_by_id(agent_id) for agent_id in team_data['agents']]
+            agents = [self.get_agent_by_id(agent_name, session_id=session_id, user_id=user_id) for agent_name in team_data['agents']]
             session_storage = SqlAgentStorage(table_name=f"{team_id}_ai_sessions", db_file="tmp/teams_sessions.db")
             
             team = Agent(
@@ -314,14 +300,23 @@ class AgentManager:
             logger.error(traceback.format_exc())
             return {"message": str(e)}
     
-    def update_agent(self, name: str, role: str, tools: List[str], 
-                    description: str, instructions: List[str],
-                    urls: List[str] = None) -> AgentResponse:
+    def update_agent(
+    self,
+    user_id: str,
+    agent_id: str,
+    role: str,
+    tools: List[str],
+    description: str,
+    instructions: List[str],
+    urls: List[str] = None
+) -> AgentResponse:
         """
-        Update an existing agent's details.
+        Update specific fields of an existing agent based on user_id and agent_id.
+        Only role, tools, description, instructions, and urls can be updated.
         
         Args:
-            name (str): Name of the agent to update
+            user_id (str): ID of the user whose agent to update
+            agent_id (str): ID of the specific agent to update
             role (str): New role of the agent
             tools (List[str]): Updated list of tool names the agent can use
             description (str): Updated description of the agent
@@ -330,23 +325,77 @@ class AgentManager:
             
         Returns:
             AgentResponse: Updated agent data
+            
+        Raises:
+            ValueError: If agent not found or doesn't belong to the user
         """
+        # Read current agents data
         agents = self.get_all_agents()
-        agent_data = next((a for a in agents if a['name'] == name), None)
         
-        if not agent_data:
-            raise ValueError(f"Agent with name '{name}' not found")
+        # Find the agent that matches both user_id and agent_id
+        agent_index = None
+        for idx, agent in enumerate(agents):
+            if agent.get('id') == agent_id and agent.get('user_id') == user_id:
+                agent_index = idx
+                break
         
-        # Update agent details
-        agent_data['role'] = role
-        agent_data['tools'] = tools
-        agent_data['description'] = description
-        agent_data['instructions'] = instructions
-        agent_data['urls'] = urls or []
-
-        # Save updated agents list to storage
+        if agent_index is None:
+            raise ValueError(f"Agent with ID '{agent_id}' not found or doesn't belong to user ID '{user_id}'")
+        
+        # Create updated agent data while preserving other fields
+        updated_agent = agents[agent_index].copy()
+        updated_agent.update({
+            'role': role,
+            'tools': tools,
+            'description': description,
+            'instructions': instructions,
+            'urls': urls or []
+        })
+        
+        # Update the agent in the list
+        agents[agent_index] = updated_agent
+        
+        # Save the updated list back to storage
         with open(self.storage_path, 'w') as f:
             json.dump(agents, f, indent=2)
+        
+        return AgentResponse(**updated_agent)
 
-        return AgentResponse(**agent_data)
-
+    def delete_agent(self, user_id: str, agent_id: str) -> AgentResponse:
+        """
+        Delete an agent based on user_id and agent_id.
+        
+        Args:
+            user_id (str): ID of the user whose agent to delete
+            agent_id (str): ID of the specific agent to delete
+            
+        Returns:
+            AgentResponse: Deleted agent data
+            
+        Raises:
+            ValueError: If agent not found or doesn't belong to the user
+        """
+        # Read current agents data
+        agents = self.get_all_agents()
+        
+        # Find the agent that matches both user_id and agent_id
+        agent_index = None
+        deleted_agent = None
+        
+        for idx, agent in enumerate(agents):
+            if agent.get('id') == agent_id and agent.get('user_id') == user_id:
+                agent_index = idx
+                deleted_agent = agent
+                break
+        
+        if agent_index is None:
+            raise ValueError(f"Agent with ID '{agent_id}' not found or doesn't belong to user ID '{user_id}'")
+        
+        # Remove the agent from the list
+        agents.pop(agent_index)
+        
+        # Save the updated list back to storage
+        with open(self.storage_path, 'w') as f:
+            json.dump(agents, f, indent=2)
+        
+        return AgentResponse(**deleted_agent)

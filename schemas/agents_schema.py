@@ -10,6 +10,14 @@ class CreateAgentRequest(BaseModel):
     instructions: List[str]
     urls: Optional[List[str]] = []
 
+class UpdateAgentRequest(BaseModel):
+    agent_id: str 
+    role: str
+    tools: List[str]
+    description: str
+    instructions: List[str]
+    urls: Optional[List[str]] = []
+
 # Response Models
 class AgentResponse(BaseModel):
     id: str 
@@ -31,6 +39,14 @@ class CreateAgentResponse(BaseModel):
 class UserAgentsResponse(BaseModel):
     agents: List[AgentResponse]
 
+class UpdateAgentResponse(BaseModel):
+    message: str
+    agent: AgentResponse
+
 class RunAgentRequest(BaseModel):
     message: str
     agent_id: str
+
+class DeleteAgentResponse(BaseModel):
+    message: str
+    body: AgentResponse
