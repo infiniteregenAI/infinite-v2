@@ -1,0 +1,59 @@
+[
+  {
+    "id": "1",
+    "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
+    "name": "Doctor n Poet",
+    "agents": [],
+    "instructions": [
+      "Discuss how patients and peom are correlated"
+    ],
+    "markdown": true,
+    "show_tool_calls": true
+  },
+  {
+    "id": "2",
+    "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
+    "name": "Doctor n Poet",
+    "agents": [
+      {
+        "id": "2",
+        "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
+        "name": "raju",
+        "role": "doctor",
+        "tools": [],
+        "description": "Pandas Health care specialist",
+        "instructions": [
+          "Check pandas heart health"
+        ],
+        "urls": [
+          "https://wwfeu.awsassets.panda.org/downloads/giant_panda_factsheet2006.pdf"
+        ],
+        "markdown": true,
+        "show_tool_calls": true,
+        "add_datetime_to_instructions": true
+      },
+      {
+        "id": "4",
+        "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
+        "name": "manu",
+        "role": "poet",
+        "tools": [],
+        "description": "wrties poem",
+        "instructions": [
+          "Very good at writing poems"
+        ],
+        "urls": [
+          "https://home.uchicago.edu/~jcarlsen/2007/downloads/Selections.pdf"
+        ],
+        "markdown": true,
+        "show_tool_calls": true,
+        "add_datetime_to_instructions": true
+      }
+    ],
+    "instructions": [
+      "Discuss how patients and peom are correlated"
+    ],
+    "markdown": true,
+    "show_tool_calls": true
+  }
+]
