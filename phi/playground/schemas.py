@@ -4,6 +4,14 @@ from typing import List, Optional, Any, Dict
 from fastapi import UploadFile
 
 
+class AgentCreateRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
+    role: Optional[str] = None
+    instructions: Optional[List[str]] = None
+    tools: Optional[List[str]] = None
+    urls: Optional[List[str]] = None
+
 class AgentModel(BaseModel):
     name: Optional[str] = None
     model: Optional[str] = None

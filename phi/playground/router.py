@@ -7,7 +7,7 @@ import traceback
 import json 
 
 from utils.constants import AVAILABLE_TOOLS
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile , Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from schemas.agents_schema import AgentResponse, UserAgentsResponse
 from dotenv import load_dotenv
@@ -39,7 +39,9 @@ from phi.playground.schemas import (
     WorkflowRunRequest,
     WorkflowSessionsRequest,
     WorkflowRenameRequest,
+    AgentCreateRequest
 )
+
 
 load_dotenv()
 
@@ -479,47 +481,44 @@ def get_async_playground_router(
     
     @playground_router.post("/create/agent")
     async def create_agent(
-        name: str,
-        user_id: Optional[str] = None,
-        description: Optional[str] = None,
-        role: Optional[str] = None,
-        instructions: Optional[List[str]] = None,
-        tools: Optional[List[str]] = None,
-        urls: Optional[List[str]] = None,
+        request: Request,
     ):
+        data = await request.json()
+        body = AgentCreateRequest(**data)
+        
         agent_id = "agent_"+str(uuid4())
         agent = Agent(
-            name=name,
-            role=role,
+            name=body.name,
+            role=body.role,
             agent_id=agent_id,
-            tools=[tool_map[tool] for tool in tools] if tools else None,
-            description=description,
-            instructions=instructions,
+            tools=[tool_map[tool] for tool in body.tools] if body.tools else None,
+            description=body.description,
+            instructions=body.instructions,
             search_knowledge=True,
             knowledge_base=PDFUrlKnowledgeBase(
-                urls=urls,
+                urls=body.urls,
                 vector_db=PgVector(table_name=f"{agent_id}_knowledge", db_url=DB_URL, search_type=SearchType.hybrid)
             ),
             show_tool_calls=True,
             markdown=True,
             add_datetime_to_instructions=True,
-            user_id=user_id,
+            user_id=request.state.user.get("sub"),
             storage=SqlAgentStorage(table_name=f"{agent_id}_ai_sessions", db_file="tmp/agents_sessions.db"),
             add_history_to_messages=True,
             num_history_responses=5,
         )
         agent_data = AgentResponse(
             id=agent_id,
-            name=name,
-            role=role,
-            tools=tools,
-            description=description,
-            instructions=instructions,
-            urls=urls,
+            name=body.name,
+            role=body.role,
+            tools=body.tools,
+            description=body.description,
+            instructions=body.instructions,
+            urls=body.urls,
             markdown=True,
             show_tool_calls=True,
             add_datetime_to_instructions=True,
-            user_id=user_id 
+            user_id=body.user_id 
         ) 
         agents.append(agent)
         
@@ -529,7 +528,7 @@ def get_async_playground_router(
         with open(agents_json_file_path, 'w') as f:
             json.dump(json_agents, f, indent=2)
         
-        return {"message": f"Agent {name} created successfully", "agent_id": agent_id}
+        return {"message": f"Agent {body.name} created successfully", "agent_id": agent_id}
     
     @playground_router.put("/update/agent/{agent_id}")
     async def update_agent(
