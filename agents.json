@@ -56,24 +56,7 @@
   {
     "id": "4",
     "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
-    "name": "manu",
-    "role": "poet",
-    "tools": [],
-    "description": "wrties poem",
-    "instructions": [
-      "Very good at writing poems"
-    ],
-    "urls": [
-      "https://home.uchicago.edu/~jcarlsen/2007/downloads/Selections.pdf"
-    ],
-    "markdown": true,
-    "show_tool_calls": true,
-    "add_datetime_to_instructions": true
-  },
-  {
-    "id": "5",
-    "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
-    "name": "manu",
+    "name": "ankit",
     "role": "poet",
     "tools": [],
     "description": "wrties poem",

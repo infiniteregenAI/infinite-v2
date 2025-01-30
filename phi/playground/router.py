@@ -3,10 +3,13 @@ from io import BytesIO
 from typing import Any, List, Optional, AsyncGenerator, Dict, cast, Union, Generator
 from uuid import uuid4
 import os
+import traceback
 import json 
 
+from utils.constants import AVAILABLE_TOOLS
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse, JSONResponse
+from schemas.agents_schema import AgentResponse, UserAgentsResponse
 from dotenv import load_dotenv
 from phi.agent.agent import Agent, RunResponse
 from phi.agent.session import AgentSession
@@ -37,8 +40,6 @@ from phi.playground.schemas import (
     WorkflowSessionsRequest,
     WorkflowRenameRequest,
 )
-
-from schemas.agents_schema import AgentResponse
 
 load_dotenv()
 
@@ -477,7 +478,7 @@ def get_async_playground_router(
         return {"message": "Hello, World!"}
     
     @playground_router.post("/create/agent")
-    def create_agent(
+    async def create_agent(
         name: str,
         user_id: Optional[str] = None,
         description: Optional[str] = None,
@@ -529,6 +530,118 @@ def get_async_playground_router(
             json.dump(json_agents, f, indent=2)
         
         return {"message": f"Agent {name} created successfully", "agent_id": agent_id}
+    
+    @playground_router.put("/update/agent/{agent_id}")
+    async def update_agent(
+        agent_id: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        role: Optional[str] = None,
+        instructions: Optional[List[str]] = None,
+        tools: Optional[List[str]] = None,
+        urls: Optional[List[str]] = None,
+    ):
+        # Load existing agents
+        with open(agents_json_file_path, 'r') as f:
+            json_agents = json.load(f)
+
+        # Find and update agent
+        for agent in json_agents:
+            if agent["id"] == agent_id:
+                if name: agent["name"] = name
+                if description: agent["description"] = description
+                if role: agent["role"] = role
+                if instructions: agent["instructions"] = instructions
+                if tools: agent["tools"] = tools
+                if urls: agent["urls"] = urls
+                break
+        else:
+            return {"message": "Agent not found"}
+
+        # Save updated agents list
+        with open(agents_json_file_path, 'w') as f:
+            json.dump(json_agents, f, indent=2)
+
+        return {"message": f"Agent {agent_id} updated successfully"}
+    
+    @playground_router.get("/available-tools")
+    async def get_available_tools():
+        """
+            This endpoint returns the available tools.
+            
+            Returns:
+                JSONResponse: The response body.
+        """
+        try:
+            return JSONResponse(
+                status_code=200,
+                content={"available_tools": AVAILABLE_TOOLS}
+            )
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            return JSONResponse(
+                status_code=500,
+                content={"message": "Internal server error"}
+            )
+
+
+    @playground_router.delete("/delete/agent/{agent_id}")
+    async def delete_agent(agent_id: str):
+        # Load existing agents
+        with open(agents_json_file_path, 'r') as f:
+            json_agents = json.load(f)
+
+        # Remove the agent from the list
+        json_agents = [agent for agent in json_agents if agent["id"] != agent_id]
+
+        # Save updated agents list
+        with open(agents_json_file_path, 'w') as f:
+            json.dump(json_agents, f, indent=2)
+
+        return {"message": f"Agent {agent_id} deleted successfully"}
+
+    @playground_router.get("/agents/reserved/", response_model=UserAgentsResponse)
+    async def get_reserved_agents():
+        """
+        Get all reserved agents.
+        
+        Returns:
+            UserAgentsResponse: List of reserved agents.
+        """
+        try:
+            # Load the agents from the JSON file
+            with open("agents.json", "r") as file:
+                agents = json.load(file)
+            
+            # Filter agents with IDs starting with "reservered_agent_"
+            reserved_agents = [agent for agent in agents if agent["id"].startswith("reservered_agent_")]
+            
+            return UserAgentsResponse(agents=reserved_agents)
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            return JSONResponse(status_code=500, content={"message": str(e)})
+    
+    @playground_router.get("/agents/user/{user_id}", response_model=UserAgentsResponse)
+    async def get_agents_by_user(user_id: str):
+        """
+        Get all agents created by a specific user.
+        
+        Args:
+            user_id (str): The ID of the user whose agents to retrieve.
+            
+        Returns:
+            UserAgentsResponse: List of agents belonging to the user.
+        """
+        try:
+            with open(agents_json_file_path, 'r') as f:
+                json_agents = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {"message": "No agents found"}
+
+        user_agents = [agent for agent in json_agents if agent.get("user_id") == user_id]
+
+        return UserAgentsResponse(agents=user_agents)
+
 
     @playground_router.get("/agent/get", response_model=List[AgentGetResponse])
     async def agent_get():

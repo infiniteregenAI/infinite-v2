@@ -1,12 +1,16 @@
 import httpx
 import os 
+import traceback
+import logging
 
-from fastapi import Request, HTTPException
+from fastapi import Request
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from jose import jwt, jwk
 from dotenv import load_dotenv
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 JWKS_JSON = os.getenv("JWKS_JSON")
 JWKS_ISSUER = os.getenv("JWKS_ISSUER")
@@ -14,43 +18,54 @@ JWKS_ISSUER = os.getenv("JWKS_ISSUER")
 class ClerkAuthMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, api_key: str):
         """
-        Middleware to validate Clerk JWT tokens
+        Middleware for verifying JWT tokens from Clerk
         
         Args:
-            app: FastAPI app instance
-            api_key: Clerk API key
+            app (FastAPI): FastAPI instance
+            api_key (str): Clerk API Key
             
         Returns:
-            None
+            ClerkAuthMiddleware: Instance of ClerkAuthMiddleware
         """
-        super().__init__(app)
-        self.api_key = api_key
-        self.clerk_jwt_public_key = None
+        try:
+            super().__init__(app)
+            self.api_key = api_key
+            self.clerk_jwt_public_key = None
+            
+        except Exception as e:
+            logger.error(f"Error initializing ClerkAuthMiddleware: {traceback.format_exc()}")
+            return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
+            
 
     async def fetch_jwt_public_key(self):
         """
-        Fetch the public key from the JWKS endpoint
+        Fetch the JWT public key from Clerk
         
         Returns:
-            jwk.JWK: Public key object
+            jwk.JWK: Public key for verifying JWT tokens
         """
-        if not self.clerk_jwt_public_key:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(JWKS_JSON)
-                jwks = response.json()
-                key_data = jwks['keys'][0]  # Assuming the first key is valid
-                self.clerk_jwt_public_key = jwk.construct(key_data)
-        return self.clerk_jwt_public_key
+        try:
+            if not self.clerk_jwt_public_key:
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(JWKS_JSON)
+                    jwks = response.json()
+                    key_data = jwks['keys'][0]  
+                    self.clerk_jwt_public_key = jwk.construct(key_data)
+            return self.clerk_jwt_public_key
+        
+        except Exception as e:
+            logger.error(f"Error fetching JWT public key: {traceback.format_exc()}")
+            return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
     async def verify_token(self, token: str) -> dict:
         """
         Verify the JWT token
         
         Args:
-            token: JWT token string
+            token (str): JWT token
             
         Returns:
-            dict: Claims from the token payload if valid or raises an HTTPException
+            dict: Claims in the JWT token
         """
         try:
             header = jwt.get_unverified_header(token)
@@ -64,25 +79,33 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
             )
             return payload
         except Exception as e:
-            raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+            logger.error(f"Error verifying JWT token: {traceback.format_exc()}")
+            return JSONResponse(status_code=401, content={"detail": "Invalid JWT token"})
 
     async def dispatch(self, request: Request, call_next):
         """
-        Middleware dispatch method
+        Dispatch method for the middleware
         
         Args:
-            request: FastAPI request object
-            call_next: Next middleware in the chain
+            request (Request): Request object
+            call_next (Callable): Next callable
             
         Returns:
-            Response from the next middleware in the chain or an HTTPException
+            Response: Response object from the middleware
         """
-        authorization = request.headers.get("Authorization")
-        if not authorization or not authorization.startswith("Bearer "):
-            raise HTTPException(status_code=401, detail="Missing authentication token")
+        try:
+            if request.url.path in ["/docs", "/redoc", "/openapi.json"]:
+                return await call_next(request)
 
-        token = authorization.split("Bearer ")[1]
-        claims = await self.verify_token(token)
-        request.state.user = claims 
+            authorization = request.headers.get("Authorization")
+            if not authorization or not authorization.startswith("Bearer "):
+                return JSONResponse(status_code=401, content={"detail": "Missing Authorization header with Bearer token"})
 
-        return await call_next(request)
+            token = authorization.split("Bearer ")[1]
+            claims = await self.verify_token(token)
+            request.state.user = claims  
+
+            return await call_next(request)
+        except Exception as e:
+            logger.error(f"Error in ClerkAuthMiddleware: {traceback.format_exc()}")
+            return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
