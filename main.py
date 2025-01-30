@@ -1,11 +1,17 @@
 import logging
+import os 
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routers import agents_router, teams_router, tools_router
-from middleware.clerk_middleware import clerk_middleware
+from middlewares.clerk_middleware import ClerkAuthMiddleware
 from utils.constants import ALLOWED_ORIGINS
+
+load_dotenv()
+
+CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -19,15 +25,13 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=ALLOWED_ORIGINS, 
     allow_credentials=True,  
     allow_methods=["*"],  
     allow_headers=["*"], 
 )
 
-@app.middleware("http")
-async def clerk_auth_middleware(request, call_next):
-    return await clerk_middleware(request, call_next)
+app.add_middleware(ClerkAuthMiddleware, api_key=CLERK_SECRET_KEY)
 
 @app.get("/")
 async def root():

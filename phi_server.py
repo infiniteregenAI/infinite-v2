@@ -34,6 +34,7 @@ for agent_data in agents_data:
     dynamic_agent = Agent(
         name=agent_data["name"],
         agent_id=agent_data["id"],
+        user_id=agent_data["user_id"],
         introduction=f"I am {agent_data['name']}, a {agent_data['role']}.",
         role=agent_data["role"],
         description=agent_data["description"],
@@ -76,7 +77,12 @@ for team_data in teams_data:
 
 all_agents = [climate_ai, green_pill_ai, owocki_ai, gitcoin_ai, reserved_agents_team] + dynamic_agents + dynamic_teams
 
-playground = Playground(agents=all_agents, workflows=[generate_blog_post, research_workflow]).get_app()
+playground_instance = Playground(
+    agents=all_agents, 
+    workflows=[generate_blog_post, research_workflow]
+)
+
+playground = playground_instance.get_app()
 
 if __name__ == "__main__":
     serve_playground_app("phi_server:playground", host="0.0.0.0", reload=True)

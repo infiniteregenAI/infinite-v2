@@ -175,8 +175,23 @@
       "Collaborate with other agents to integrate funding mechanisms into ReFi and climate discussions.",
       "Identify trends and patterns from Gitcoin's data to improve funding efficiency."
     ],
+    "urls": [],
+    "markdown": true,
+    "show_tool_calls": true,
+    "add_datetime_to_instructions": true
+  },
+  {
+    "id": "agent_2665c9c1-1714-44b3-a22b-f4ca938a1ca1",
+    "user_id": "uer_888",
+    "name": "neymar_jr",
+    "role": "playing football",
+    "tools": [],
+    "description": "plays football",
+    "instructions": [
+      "good footballer"
+    ],
     "urls": [
-      
+      "https://www.firstrand.co.za/media/new-articles/Alistair-Duff-Is-Neymar-just-the-beginning.pdf"
     ],
     "markdown": true,
     "show_tool_calls": true,

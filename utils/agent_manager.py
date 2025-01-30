@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 
 from schemas.agents_schema import AgentResponse
 from schemas.teams_schema import TeamResponse
+from phi_server import playground_instance
 
 logger = logging.getLogger(__name__)
 load_dotenv()
@@ -141,18 +142,11 @@ class AgentManager:
             storage=SqlAgentStorage(table_name=f"{agent_id}_ai_sessions", db_file="tmp/agents_sessions.db"),
             add_history_to_messages=True,
             num_history_responses=5,
+            
         )
-        cursor = self.agent_db_con.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS agents (
-                id TEXT PRIMARY KEY,
-                agent BLOB
-            )
-        ''')
         
-        serialized_agent = pickle.dumps(agent)
-        cursor.execute('INSERT INTO agents (id, agent) VALUES (?, ?)', (f'agent_{agent_id}', serialized_agent))
-        self.agent_db_con.commit()
+        playground_instance.add_agent(agent)
+
         
         agents.append(agent_data.dict())
         with open(self.storage_path, 'w') as f:
