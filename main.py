@@ -31,7 +31,7 @@ app.add_middleware(
     allow_headers=["*"], 
 )
 
-app.add_middleware(ClerkAuthMiddleware, api_key=CLERK_SECRET_KEY)
+# app.add_middleware(ClerkAuthMiddleware, api_key=CLERK_SECRET_KEY)
 
 @app.get("/")
 async def root():
