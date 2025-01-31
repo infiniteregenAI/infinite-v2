@@ -7,14 +7,7 @@ import traceback
 import json 
 
 from utils.constants import AVAILABLE_TOOLS
-<<<<<<< HEAD
-<<<<<<< HEAD
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile , Request
-=======
-=======
->>>>>>> a113fb827b73b7b013eadbc666b73aa9b4d6c980
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
->>>>>>> a113fb827b73b7b013eadbc666b73aa9b4d6c980
 from fastapi.responses import StreamingResponse, JSONResponse
 from schemas.agents_schema import AgentResponse, UserAgentsResponse
 from dotenv import load_dotenv
@@ -48,13 +41,7 @@ from phi.playground.schemas import (
     WorkflowRenameRequest,
     AgentCreateRequest
 )
-<<<<<<< HEAD
-=======
 
-<<<<<<< HEAD
->>>>>>> a113fb827b73b7b013eadbc666b73aa9b4d6c980
-=======
->>>>>>> a113fb827b73b7b013eadbc666b73aa9b4d6c980
 load_dotenv()
 
 agents_json_file_path="agents.json"
@@ -493,20 +480,7 @@ def get_async_playground_router(
     
     @playground_router.post("/create/agent")
     async def create_agent(
-<<<<<<< HEAD
-<<<<<<< HEAD
         request: Request,
-=======
-=======
->>>>>>> a113fb827b73b7b013eadbc666b73aa9b4d6c980
-        name: str,
-        user_id: Optional[str] = None,
-        description: Optional[str] = None,
-        role: Optional[str] = None,
-        instructions: Optional[List[str]] = None,
-        tools: Optional[List[str]] = None,
-        urls: Optional[List[str]] = None,
->>>>>>> a113fb827b73b7b013eadbc666b73aa9b4d6c980
     ):
         data = await request.json()
         body = AgentCreateRequest(**data)
@@ -553,14 +527,7 @@ def get_async_playground_router(
         with open(agents_json_file_path, 'w') as f:
             json.dump(json_agents, f, indent=2)
         
-<<<<<<< HEAD
         return {"message": f"Agent {body.name} created successfully", "agent_id": agent_id}
-=======
-        return {"message": f"Agent {name} created successfully", "agent_id": agent_id}
-<<<<<<< HEAD
->>>>>>> a113fb827b73b7b013eadbc666b73aa9b4d6c980
-=======
->>>>>>> a113fb827b73b7b013eadbc666b73aa9b4d6c980
     
     @playground_router.put("/update/agent/{agent_id}")
     async def update_agent(

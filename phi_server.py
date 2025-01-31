@@ -18,7 +18,7 @@ playground_instance = Playground(
 )
 
 playground = playground_instance.get_app()
-playground.add_middleware(ClerkAuthMiddleware, api_key=os.getenv("CLERK_API_KEY"))
+playground.add_middleware(ClerkAuthMiddleware, api_key=os.getenv("CLERK_SECRET_KEY"))
 
 if __name__ == "__main__":
     serve_playground_app("phi_server:playground", host="0.0.0.0", reload=True)
