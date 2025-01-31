@@ -5,8 +5,10 @@ from phi.playground import Playground, serve_playground_app
 
 from utils.get_agents_teams_workflows import load_all_agents , load_all_workflows , load_all_teams
 from middlewares.clerk_middleware import ClerkAuthMiddleware
+from schemas.database import init_db
 
 load_dotenv()
+init_db()
 
 all_agents = load_all_agents()
 all_teams = load_all_teams()

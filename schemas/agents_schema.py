@@ -11,7 +11,7 @@ class CreateAgentRequest(BaseModel):
     urls: Optional[List[str]] = []
 
 class UpdateAgentRequest(BaseModel):
-    agent_id: str 
+    name: str
     role: str
     tools: List[str]
     description: str
