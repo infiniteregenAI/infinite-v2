@@ -22,7 +22,6 @@ playground_instance = Playground(
 )
 
 playground = playground_instance.get_app()
-playground.add_middleware(ClerkAuthMiddleware, api_key=os.getenv("CLERK_SECRET_KEY"))
 playground.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS, 
@@ -30,6 +29,7 @@ playground.add_middleware(
     allow_methods=["*"],  
     allow_headers=["*"], 
 )
+playground.add_middleware(ClerkAuthMiddleware, api_key=os.getenv("CLERK_SECRET_KEY"))
 
 
 if __name__ == "__main__":
