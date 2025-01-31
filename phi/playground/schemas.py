@@ -11,7 +11,8 @@ class AgentCreateRequest(BaseModel):
     role: Optional[str] = None
     instructions: Optional[List[str]] = None
     tools: Optional[List[str]] = None
-    urls: Optional[List[str]] = None
+    pdf_urls: Optional[List[str]] = None
+    websites: Optional[List[str]] = None
 
 class AgentModel(BaseModel):
     name: Optional[str] = None

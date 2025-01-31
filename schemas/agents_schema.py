@@ -16,7 +16,8 @@ class UpdateAgentRequest(BaseModel):
     tools: List[str]
     description: str
     instructions: List[str]
-    urls: Optional[List[str]] = []
+    pdf_urls: Optional[List[str]] = []
+    websites : Optional[List[str]] = []
 
 # Response Models
 class AgentResponse(BaseModel):

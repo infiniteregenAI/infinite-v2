@@ -28,6 +28,8 @@ from phi.tools.newspaper4k import Newspaper4k
 from phi.utils.log import logger
 from phi.storage.agent.sqlite import SqlAgentStorage
 from phi.knowledge.pdf import PDFUrlKnowledgeBase
+from phi.knowledge.website import WebsiteKnowledgeBase
+from phi.knowledge.combined import CombinedKnowledgeBase
 from phi.vectordb.pgvector import PgVector, SearchType
 from phi.playground.schemas import (
     AgentGetResponse,
@@ -489,6 +491,22 @@ def get_async_playground_router(
         
         user_id = request.state.user.get("sub")
         
+        pdf_knowledge_base = PDFUrlKnowledgeBase(
+            urls=body.pdf_urls,
+            vector_db=PgVector(table_name=f"{agent_id}_pdf_knowledge", db_url=DB_URL, search_type=SearchType.hybrid)
+        )
+    
+        website_knowledge_base = WebsiteKnowledgeBase(
+            urls=body.websites,
+            max_links=10,
+            vector_db=PgVector(table_name=f"{agent_id}_website_knowledge", db_url=DB_URL, search_type=SearchType.hybrid)
+        )
+    
+        combined_knowledge_base = CombinedKnowledgeBase(
+            sources=[pdf_knowledge_base, website_knowledge_base],
+            vector_db=PgVector(table_name=f"{agent_id}_combined_knowledge", db_url=DB_URL, search_type=SearchType.hybrid)
+        )
+
         agent = Agent(
             name=body.name,
             role=body.role,
@@ -497,10 +515,7 @@ def get_async_playground_router(
             description=body.description,
             instructions=body.instructions,
             search_knowledge=True,
-            knowledge_base=PDFUrlKnowledgeBase(
-                urls=body.urls,
-                vector_db=PgVector(table_name=f"{agent_id}_knowledge", db_url=DB_URL, search_type=SearchType.hybrid)
-            ),
+            knowledge_base=combined_knowledge_base,
             show_tool_calls=True,
             markdown=True,
             add_datetime_to_instructions=True,
@@ -517,7 +532,7 @@ def get_async_playground_router(
             "tools": body.tools,
             "description": body.description,
             "instructions": body.instructions,
-            "urls": body.urls,
+            "urls": body.pdf_urls,
             "markdown": True,
             "show_tool_calls": True,
             "add_datetime_to_instructions": True,
@@ -553,11 +568,29 @@ def get_async_playground_router(
             "tools": body.tools,
             "description": body.description,
             "instructions": instructions_str,
-            "urls": body.urls
+            "pdf_urls": body.pdf_urls,
+            "websites": body.websites
         }
         
         try:
             updated_agent = DatabaseOperations.update_agent(db, agent_id, update_data)
+            
+            pdf_knowledge_base = PDFUrlKnowledgeBase(
+                urls=body.pdf_urls,
+                vector_db=PgVector(table_name=f"{agent_id}_pdf_knowledge", db_url=DB_URL, search_type=SearchType.hybrid)
+            )
+            
+            website_knowledge_base = WebsiteKnowledgeBase(
+                urls=body.websites,
+                max_links=10,
+                vector_db=PgVector(table_name=f"{agent_id}_website_knowledge", db_url=DB_URL, search_type=SearchType.hybrid)
+            )
+            
+            combined_knowledge_base = CombinedKnowledgeBase(
+                sources=[pdf_knowledge_base, website_knowledge_base],
+                vector_db=PgVector(table_name=f"{agent_id}_combined_knowledge", db_url=DB_URL, search_type=SearchType.hybrid)
+            )
+            
             
             for agent in agents:
                 if agent.agent_id == agent_id:
@@ -566,14 +599,7 @@ def get_async_playground_router(
                     agent.tools = [tool_map[tool] for tool in body.tools] if body.tools else None
                     agent.description = body.description
                     agent.instructions = body.instructions  
-                    agent.knowledge_base = PDFUrlKnowledgeBase(
-                        urls=body.urls,
-                        vector_db=PgVector(
-                            table_name=f"{agent_id}_knowledge",
-                            db_url=DB_URL,
-                            search_type=SearchType.hybrid
-                        )
-                    )
+                    agent.knowledge_base = combined_knowledge_base
                     break
             
             instructions_list = updated_agent.instructions.split('\n') if updated_agent.instructions else []
