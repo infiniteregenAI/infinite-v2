@@ -109,6 +109,8 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
             if hasattr(claims, "status_code"):
                 if claims.status_code == 401:
                     return JSONResponse(status_code=401, content={"detail": "Invalid token"})
+            elif not claims:
+                return JSONResponse(status_code=401, content={"detail": "Invalid token"})
             
             request.state.user = claims  
             return await call_next(request)
