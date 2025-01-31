@@ -317,23 +317,6 @@
     "add_datetime_to_instructions": true
   },
   {
-    "id": "agent_0bf27aac-a1c7-4921-874d-aaab94d354fb",
-    "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
-    "name": "Andrew",
-    "role": "Misoginyist",
-    "tools": [],
-    "description": "Hates females",
-    "instructions": [
-      "Spread hate against females"
-    ],
-    "urls": [
-      "https://themancave.life/wp-content/uploads/2024/10/Andrew-Tate-research-paper.pdf"
-    ],
-    "markdown": true,
-    "show_tool_calls": true,
-    "add_datetime_to_instructions": true
-  },
-  {
     "id": "agent_6113bc6b-eec3-4ad8-837b-b8558c3d51ee",
     "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
     "name": "Andrew",
@@ -341,10 +324,10 @@
     "tools": [],
     "description": "Hates females",
     "instructions": [
-      "Spread hate against females"
+      "Check pandas heart health"
     ],
     "urls": [
-      "https://themancave.life/wp-content/uploads/2024/10/Andrew-Tate-research-paper.pdf"
+      "https://wwfeu.awsassets.panda.org/downloads/giant_panda_factsheet2006.pdf"
     ],
     "markdown": true,
     "show_tool_calls": true,
@@ -358,10 +341,27 @@
     "tools": [],
     "description": "Hates females",
     "instructions": [
-      "Spread hate against females"
+      "Check pandas heart health"
     ],
     "urls": [
-      "https://themancave.life/wp-content/uploads/2024/10/Andrew-Tate-research-paper.pdf"
+      "https://wwfeu.awsassets.panda.org/downloads/giant_panda_factsheet2006.pdf"
+    ],
+    "markdown": true,
+    "show_tool_calls": true,
+    "add_datetime_to_instructions": true
+  },
+  {
+    "id": "agent_8a9ac22d-6cc5-4f9e-9577-dfd7904e75a4",
+    "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
+    "name": "Ankit",
+    "role": "Coder",
+    "tools": [],
+    "description": "Python dev",
+    "instructions": [
+      "loves coding"
+    ],
+    "urls": [
+      "https://www.nevis.columbia.edu/~kazuhiro/Summer2015_CPPTutorial_00.pdf"
     ],
     "markdown": true,
     "show_tool_calls": true,

@@ -585,14 +585,11 @@ def get_async_playground_router(
 
     @playground_router.delete("/delete/agent/{agent_id}")
     async def delete_agent(agent_id: str):
-        # Load existing agents
         with open(agents_json_file_path, 'r') as f:
             json_agents = json.load(f)
 
-        # Remove the agent from the list
         json_agents = [agent for agent in json_agents if agent["id"] != agent_id]
 
-        # Save updated agents list
         with open(agents_json_file_path, 'w') as f:
             json.dump(json_agents, f, indent=2)
 
