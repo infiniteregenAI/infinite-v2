@@ -196,5 +196,158 @@
     "markdown": true,
     "show_tool_calls": true,
     "add_datetime_to_instructions": true
+  },
+  {
+    "id": "agent_fde70a6d-cb2d-4cf8-9a86-62f51fbb8d86",
+    "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
+    "name": "Elon",
+    "role": "Leader",
+    "tools": [],
+    "description": "Innovates",
+    "instructions": [
+      "Create neural networks"
+    ],
+    "urls": [
+      "https://booksandideas.net/IMG/pdf/en_stmartin_musk_14.03.2019_.pdf"
+    ],
+    "markdown": true,
+    "show_tool_calls": true,
+    "add_datetime_to_instructions": true
+  },
+  {
+    "id": "agent_21536f5e-06ea-479b-8867-9140cfcd174d",
+    "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
+    "name": "Andrew",
+    "role": "Misoginyist",
+    "tools": [],
+    "description": "Hates females",
+    "instructions": [
+      "Spread hate against females"
+    ],
+    "urls": [
+      "https://themancave.life/wp-content/uploads/2024/10/Andrew-Tate-research-paper.pdf"
+    ],
+    "markdown": true,
+    "show_tool_calls": true,
+    "add_datetime_to_instructions": true
+  },
+  {
+    "id": "agent_e680350a-1155-48d5-8dca-b49e6e7519c2",
+    "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
+    "name": "Andrew",
+    "role": "Misoginyist",
+    "tools": [],
+    "description": "Hates females",
+    "instructions": [
+      "Spread hate against females"
+    ],
+    "urls": [
+      "https://themancave.life/wp-content/uploads/2024/10/Andrew-Tate-research-paper.pdf"
+    ],
+    "markdown": true,
+    "show_tool_calls": true,
+    "add_datetime_to_instructions": true
+  },
+  {
+    "id": "agent_2e8fd1e1-0bd5-4f28-b249-3694b858b241",
+    "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
+    "name": "Andrew",
+    "role": "Misoginyist",
+    "tools": [],
+    "description": "Hates females",
+    "instructions": [
+      "Spread hate against females"
+    ],
+    "urls": [
+      "https://themancave.life/wp-content/uploads/2024/10/Andrew-Tate-research-paper.pdf"
+    ],
+    "markdown": true,
+    "show_tool_calls": true,
+    "add_datetime_to_instructions": true
+  },
+  {
+    "id": "agent_c405ac9e-9e4c-4134-9099-b39fd3bad753",
+    "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
+    "name": "Andrew",
+    "role": "Misoginyist",
+    "tools": [],
+    "description": "Hates females",
+    "instructions": [
+      "Spread hate against females"
+    ],
+    "urls": [
+      "https://themancave.life/wp-content/uploads/2024/10/Andrew-Tate-research-paper.pdf"
+    ],
+    "markdown": true,
+    "show_tool_calls": true,
+    "add_datetime_to_instructions": true
+  },
+  {
+    "id": "agent_c0e9130e-bbba-46a9-aed7-a8b5890300cd",
+    "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
+    "name": "Andrew",
+    "role": "Misoginyist",
+    "tools": [],
+    "description": "Hates females",
+    "instructions": [
+      "Spread hate against females"
+    ],
+    "urls": [
+      "https://themancave.life/wp-content/uploads/2024/10/Andrew-Tate-research-paper.pdf"
+    ],
+    "markdown": true,
+    "show_tool_calls": true,
+    "add_datetime_to_instructions": true
+  },
+  {
+    "id": "agent_e303e1a1-8326-4afd-b0b1-54953465574e",
+    "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
+    "name": "Andrew",
+    "role": "Misoginyist",
+    "tools": [],
+    "description": "Hates females",
+    "instructions": [
+      "Spread hate against females"
+    ],
+    "urls": [
+      "https://themancave.life/wp-content/uploads/2024/10/Andrew-Tate-research-paper.pdf"
+    ],
+    "markdown": true,
+    "show_tool_calls": true,
+    "add_datetime_to_instructions": true
+  },
+  {
+    "id": "agent_0bf27aac-a1c7-4921-874d-aaab94d354fb",
+    "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
+    "name": "Andrew",
+    "role": "Misoginyist",
+    "tools": [],
+    "description": "Hates females",
+    "instructions": [
+      "Spread hate against females"
+    ],
+    "urls": [
+      "https://themancave.life/wp-content/uploads/2024/10/Andrew-Tate-research-paper.pdf"
+    ],
+    "markdown": true,
+    "show_tool_calls": true,
+    "add_datetime_to_instructions": true
+  },
+  {
+    "id": "agent_6113bc6b-eec3-4ad8-837b-b8558c3d51ee",
+    "user_id": "user_2sFNBBArGTMbOPDERMj2eKeSTrD",
+    "name": "Andrew",
+    "role": "Misoginyist",
+    "tools": [],
+    "description": "Hates females",
+    "instructions": [
+      "Spread hate against females"
+    ],
+    "urls": [
+      "https://themancave.life/wp-content/uploads/2024/10/Andrew-Tate-research-paper.pdf"
+    ],
+    "markdown": true,
+    "show_tool_calls": true,
+    "add_datetime_to_instructions": true
   }
 ]

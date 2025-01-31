@@ -35,7 +35,6 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             logger.error(f"Error initializing ClerkAuthMiddleware: {traceback.format_exc()}")
             return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
-            
 
     async def fetch_jwt_public_key(self):
         """
@@ -57,39 +56,39 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
             logger.error(f"Error fetching JWT public key: {traceback.format_exc()}")
             return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
-    async def verify_token(self, token: str) -> dict:
+    async def verify_token(self, token: str) -> dict | None:
         """
         Verify the JWT token
-        
+
         Args:
             token (str): JWT token
-            
+
         Returns:
-            dict: Claims in the JWT token
+            dict: Claims in the JWT token, or None if verification fails
         """
         try:
             header = jwt.get_unverified_header(token)
             public_key = await self.fetch_jwt_public_key()
             payload = jwt.decode(
                 token,
-                public_key.to_pem().decode('utf-8'),
+                public_key.to_pem().decode("utf-8"),
                 algorithms=["RS256"],
                 options={"verify_aud": False},
-                issuer=JWKS_ISSUER
+                issuer=JWKS_ISSUER,
             )
-            return payload
+            return payload 
         except Exception as e:
             logger.error(f"Error verifying JWT token: {traceback.format_exc()}")
-            return JSONResponse(status_code=401, content={"detail": "Invalid JWT token"})
-
+            return None  
+        
     async def dispatch(self, request: Request, call_next):
         """
         Dispatch method for the middleware
-        
+
         Args:
             request (Request): Request object
             call_next (Callable): Next callable
-            
+
         Returns:
             Response: Response object from the middleware
         """
@@ -99,12 +98,19 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
 
             authorization = request.headers.get("Authorization")
             if not authorization or not authorization.startswith("Bearer "):
-                return JSONResponse(status_code=401, content={"detail": "Missing Authorization header with Bearer token"})
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Missing Authorization header with Bearer token"},
+                )
 
             token = authorization.split("Bearer ")[1]
             claims = await self.verify_token(token)
-            request.state.user = claims  
 
+            if hasattr(claims, "status_code"):
+                if claims.status_code == 401:
+                    return JSONResponse(status_code=401, content={"detail": "Invalid token"})
+            
+            request.state.user = claims  
             return await call_next(request)
         except Exception as e:
             logger.error(f"Error in ClerkAuthMiddleware: {traceback.format_exc()}")

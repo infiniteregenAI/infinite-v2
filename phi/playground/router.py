@@ -41,8 +41,6 @@ from phi.playground.schemas import (
     WorkflowRenameRequest,
     AgentCreateRequest
 )
-
-
 load_dotenv()
 
 agents_json_file_path="agents.json"
@@ -518,7 +516,7 @@ def get_async_playground_router(
             markdown=True,
             show_tool_calls=True,
             add_datetime_to_instructions=True,
-            user_id=body.user_id 
+            user_id=request.state.user.get("sub")
         ) 
         agents.append(agent)
         
