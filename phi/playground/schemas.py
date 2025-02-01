@@ -12,7 +12,7 @@ class AgentCreateRequest(BaseModel):
     instructions: Optional[List[str]] = None
     tools: Optional[List[str]] = None
     pdf_urls: Optional[List[str]] = None
-    websites: Optional[List[str]] = None
+    website_urls: Optional[List[str]] = None
 
 class AgentModel(BaseModel):
     name: Optional[str] = None
@@ -48,11 +48,9 @@ class AgentRenameRequest(BaseModel):
 class AgentSessionDeleteRequest(BaseModel):
     agent_id: str
     session_id: str
-    user_id: Optional[str] = None
 
 class AgentSessionsRequest(BaseModel):
     agent_id: str
-    user_id: Optional[str] = None
 
 class AgentSessionsResponse(BaseModel):
     title: Optional[str] = None

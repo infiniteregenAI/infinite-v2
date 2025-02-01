@@ -11,15 +11,14 @@ class CreateAgentRequest(BaseModel):
     urls: Optional[List[str]] = []
 
 class UpdateAgentRequest(BaseModel):
-    name: str
-    role: str
-    tools: List[str]
-    description: str
-    instructions: List[str]
+    name: Optional[str] = None
+    role: Optional[str] = None
+    tools: Optional[List[str]] = None
+    description: Optional[str] = None
+    instructions: Optional[List[str]] = None
     pdf_urls: Optional[List[str]] = []
-    websites : Optional[List[str]] = []
+    website_urls: Optional[List[str]] = []  
 
-# Response Models
 class AgentResponse(BaseModel):
     id: str 
     user_id: str
@@ -28,7 +27,8 @@ class AgentResponse(BaseModel):
     tools: List[str]
     description: str
     instructions: List[str]
-    urls: List[str]
+    pdf_urls: List[str]  
+    website_urls: List[str]  
     markdown: bool
     show_tool_calls: bool
     add_datetime_to_instructions: bool

@@ -24,14 +24,14 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Pydantic model for validation
 class AgentCreate(BaseModel):
     name: str
     role: str
     tools: Optional[List[str]] = []
     description: Optional[str] = None
     instructions: Optional[str] = None
-    urls: Optional[List[str]] = []
+    pdf_urls: Optional[List[str]] = []
+    website_urls: Optional[List[str]] = []
     markdown: bool = True
     show_tool_calls: bool = True
     add_datetime_to_instructions: bool = True
@@ -46,7 +46,8 @@ class AgentDB(Base):
     tools = Column(ARRAY(String), nullable=True, server_default='{}')
     description = Column(String, nullable=True)
     instructions = Column(String, nullable=True)
-    urls = Column(ARRAY(String), nullable=True, server_default='{}')
+    pdf_urls = Column(ARRAY(String), nullable=True, server_default='{}')
+    website_urls = Column(ARRAY(String), nullable=True, server_default='{}')
     markdown = Column(Boolean, default=True)
     show_tool_calls = Column(Boolean, default=True)
     add_datetime_to_instructions = Column(Boolean, default=True)
