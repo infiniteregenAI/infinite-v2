@@ -45,7 +45,7 @@ class AgentDB(Base):
     role = Column(String, nullable=False)
     tools = Column(ARRAY(String), nullable=True, server_default='{}')
     description = Column(String, nullable=True)
-    instructions = Column(String, nullable=True)
+    instructions = Column(ARRAY(String), nullable=True, server_default='{}')
     pdf_urls = Column(ARRAY(String), nullable=True, server_default='{}')
     website_urls = Column(ARRAY(String), nullable=True, server_default='{}')
     markdown = Column(Boolean, default=True)
@@ -119,10 +119,6 @@ class DatabaseOperations:
     def update_agent(db: Session, agent_id: str, agent_data: dict) -> AgentDB:
         try:
             db_agent = DatabaseOperations.get_agent(db, agent_id)
-            
-            # Convert instructions list to string if it's a list
-            if 'instructions' in agent_data and isinstance(agent_data['instructions'], list):
-                agent_data['instructions'] = '\n'.join(agent_data['instructions'])
             
             for key, value in agent_data.items():
                 if hasattr(db_agent, key):

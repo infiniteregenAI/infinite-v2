@@ -8,13 +8,38 @@ def migrate_database():
     
     engine = create_engine(DB_URL)
     
-    # SQL commands to add missing columns
+    # SQL commands for migrating instructions to array type
     migration_commands = [
         """
-        ALTER TABLE agents
-        ADD COLUMN IF NOT EXISTS pdf_urls VARCHAR[] DEFAULT '{}',
-        ADD COLUMN IF NOT EXISTS website_urls VARCHAR[] DEFAULT '{}'
+        -- First create temporary column
+        ALTER TABLE agents 
+        ADD COLUMN IF NOT EXISTS instructions_array VARCHAR[] DEFAULT '{}'
         """,
+        
+        """
+        -- Copy data from existing instructions to array format
+        UPDATE agents 
+        SET instructions_array = string_to_array(instructions, E'\n')
+        WHERE instructions IS NOT NULL AND instructions != ''
+        """,
+        
+        """
+        -- Drop the old column
+        ALTER TABLE agents 
+        DROP COLUMN IF EXISTS instructions
+        """,
+        
+        """
+        -- Rename the new array column
+        ALTER TABLE agents 
+        RENAME COLUMN instructions_array TO instructions
+        """,
+        
+        """
+        -- Set the default value
+        ALTER TABLE agents 
+        ALTER COLUMN instructions SET DEFAULT '{}'
+        """
     ]
     
     with engine.connect() as connection:

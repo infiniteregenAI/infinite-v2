@@ -488,7 +488,6 @@ def get_async_playground_router(
         db: Session = Depends(get_db)
     ):
         agent_id = "agent_"+str(uuid4())
-        
         user_id = request.state.user.get("sub")
         
         pdf_knowledge_base = PDFUrlKnowledgeBase(
@@ -546,7 +545,7 @@ def get_async_playground_router(
             "role": body.role,
             "tools": body.tools,
             "description": body.description,
-            "instructions": body.instructions,
+            "instructions": body.instructions,  
             "pdf_urls": body.pdf_urls,
             "website_urls": body.website_urls,
             "markdown": True,
@@ -574,14 +573,17 @@ def get_async_playground_router(
         if existing_agent.user_id != user_id:
             raise HTTPException(status_code=403, detail="Not authorized to update this agent")
         
-        instructions_str = '\n'.join(body.instructions) if body.instructions else existing_agent.instructions
+        instructions = body.instructions if body.instructions is not None else existing_agent.instructions
+        
+        if isinstance(instructions, str):
+            instructions = [instructions]
         
         update_data = {
             "name": body.name if body.name is not None else existing_agent.name,
             "role": body.role if body.role is not None else existing_agent.role,
             "tools": body.tools if body.tools is not None else existing_agent.tools,
             "description": body.description if body.description is not None else existing_agent.description,
-            "instructions": instructions_str,
+            "instructions": instructions,  
             "pdf_urls": body.pdf_urls if body.pdf_urls is not None else existing_agent.pdf_urls,
             "website_urls": body.website_urls if body.website_urls is not None else existing_agent.website_urls
         }
@@ -623,7 +625,7 @@ def get_async_playground_router(
                     agent.role = update_data["role"]
                     agent.tools = [tool_map[tool] for tool in update_data["tools"]] if update_data["tools"] else None
                     agent.description = update_data["description"]
-                    agent.instructions = instructions_str.split('\n') if instructions_str else []
+                    agent.instructions = instructions
                     agent.knowledge_base = combined_knowledge_base
                     break
             
@@ -636,7 +638,7 @@ def get_async_playground_router(
                     role=updated_agent.role,
                     tools=updated_agent.tools,
                     description=updated_agent.description,
-                    instructions=instructions_str.split('\n') if instructions_str else [],
+                    instructions=instructions, 
                     pdf_urls=updated_agent.pdf_urls,
                     website_urls=updated_agent.website_urls,
                     markdown=updated_agent.markdown,
@@ -705,7 +707,7 @@ def get_async_playground_router(
                     role=existing_agent.role,
                     tools=existing_agent.tools,
                     description=existing_agent.description,
-                    instructions=existing_agent.instructions.split('\n') if existing_agent.instructions else [],
+                    instructions=existing_agent.instructions,
                     pdf_urls=existing_agent.pdf_urls,
                     website_urls=existing_agent.website_urls,
                     markdown=existing_agent.markdown,
@@ -747,7 +749,7 @@ def get_async_playground_router(
                         role=agent.role,
                         tools=agent.tools,
                         description=agent.description,
-                        instructions=agent.instructions.split('\n') if agent.instructions else [],
+                        instructions=agent.instructions if agent.instructions else [],  
                         pdf_urls=agent.pdf_urls,
                         website_urls=agent.website_urls,
                         markdown=agent.markdown,
@@ -770,7 +772,7 @@ def get_async_playground_router(
                             role=agent["role"],
                             tools=agent["tools"],
                             description=agent["description"],
-                            instructions=agent.get("instructions", []),
+                            instructions=agent.get("instructions", []),  
                             pdf_urls=agent.get("pdf_urls", []),
                             website_urls=agent.get("website_urls", []),
                             markdown=agent.get("markdown", False),
