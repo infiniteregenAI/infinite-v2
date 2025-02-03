@@ -542,7 +542,7 @@ def get_async_playground_router(
             num_history_responses=5,
         )
         
-        agents.append(agent)
+        agents.insert(0, agent)
         
         agent_data = {
             "id": agent_id,
