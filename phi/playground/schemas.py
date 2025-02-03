@@ -77,6 +77,5 @@ class AgentRunRequest(BaseModel):
     stream: bool = Form(True),
     monitor: bool = Form(False),
     session_id: Optional[str] = Form(None),
-    user_id: Optional[str] = Form(None),
     files: Optional[List[UploadFile]] = File(None),
-    image: Optional[UploadFile] = File(None),
+    image: Optional[UploadFile] = File(None)

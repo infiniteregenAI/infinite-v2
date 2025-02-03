@@ -95,7 +95,11 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
         try:
             if request.url.path in ["/docs", "/redoc", "/openapi.json"]:
                 return await call_next(request)
-
+            
+            if request.method == 'OPTIONS':
+                response = await call_next(request)
+                return response
+            
             authorization = request.headers.get("Authorization")
             if not authorization or not authorization.startswith("Bearer "):
                 return JSONResponse(

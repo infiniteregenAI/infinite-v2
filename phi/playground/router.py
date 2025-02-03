@@ -5,6 +5,7 @@ from uuid import uuid4
 import os
 import traceback
 import json 
+from typing import Annotated
 
 from utils.constants import AVAILABLE_TOOLS
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile , Request, Depends
@@ -46,6 +47,8 @@ from phi.playground.schemas import (
 from schemas.database import get_db, DatabaseOperations, get_db_session
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+
+
 load_dotenv()
 
 DB_URL = os.getenv("DB_URL")
@@ -713,9 +716,9 @@ def get_async_playground_router(
             logger.error(traceback.format_exc())
             return JSONResponse(status_code=500, content={"message": str(e)})
     
-    @playground_router.get("/agents/user/{user_id}", response_model=UserAgentsResponse)
+    @playground_router.get("/agents_by_user_id", response_model=UserAgentsResponse)
     async def get_agents_by_user(
-        user_id: str,
+        request : Request,
         db: Session = Depends(get_db)
     ):
         """
@@ -728,6 +731,7 @@ def get_async_playground_router(
             UserAgentsResponse: List of agents belonging to the user.
         """
         try:
+            user_id = request.state.user.get("sub")
             db_agents = DatabaseOperations.get_agents_by_user(db, user_id)
             
             agents = [
