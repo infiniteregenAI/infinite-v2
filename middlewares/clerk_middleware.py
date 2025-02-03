@@ -93,6 +93,16 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
             Response: Response object from the middleware
         """
         try:
+            # Log the request path and headers for debugging
+            logger.debug(f"Request path: {request.url.path}")
+            logger.debug(f"Request headers: {dict(request.headers)}")
+
+            # Allow OPTIONS requests to pass through without authentication
+            if request.method == "OPTIONS":
+                response = await call_next(request)
+                return response
+
+            # Skip authentication for docs
             if request.url.path in ["/docs", "/redoc", "/openapi.json"]:
                 return await call_next(request)
             
@@ -107,13 +117,25 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
                     content={"detail": "Missing Authorization header with Bearer token"},
                 )
 
-            token = authorization.split("Bearer ")[1]
-            claims = await self.verify_token(token)
+            if not authorization.startswith("Bearer "):
+                logger.debug("Authorization header doesn't start with Bearer")
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Invalid Authorization header format"},
+                )
 
-            if hasattr(claims, "status_code"):
-                if claims.status_code == 401:
-                    return JSONResponse(status_code=401, content={"detail": "Invalid token"})
-            elif not claims:
+            token = authorization.split("Bearer ")[1].strip()
+            if not token:
+                logger.debug("Empty token found")
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Empty token provided"},
+                )
+
+            claims = await self.verify_token(token)
+            logger.debug(f"Token claims: {claims}")
+
+            if not claims:
                 return JSONResponse(status_code=401, content={"detail": "Invalid token"})
             
             request.state.user = claims  

@@ -8,7 +8,7 @@ import json
 from typing import Annotated
 
 from utils.constants import AVAILABLE_TOOLS
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile , Request, Depends
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile , Request, Depends, Query
 from fastapi.responses import StreamingResponse, JSONResponse
 from schemas.agents_schema import AgentResponse, UserAgentsResponse, UpdateAgentRequest, UpdateAgentResponse, DeleteAgentResponse
 from dotenv import load_dotenv
@@ -491,23 +491,34 @@ def get_async_playground_router(
         db: Session = Depends(get_db)
     ):
         agent_id = "agent_"+str(uuid4())
-        
         user_id = request.state.user.get("sub")
         
         pdf_knowledge_base = PDFUrlKnowledgeBase(
             urls=body.pdf_urls,
-            vector_db=PgVector(table_name=f"{agent_id}_pdf_knowledge", db_url=DB_URL, search_type=SearchType.hybrid)
+            vector_db=PgVector(
+                table_name=f"{agent_id}_pdf_knowledge",
+                db_url=DB_URL,
+                search_type=SearchType.hybrid
+            )
         )
-    
+
         website_knowledge_base = WebsiteKnowledgeBase(
-            urls=body.websites,
+            urls=body.website_urls,
             max_links=10,
-            vector_db=PgVector(table_name=f"{agent_id}_website_knowledge", db_url=DB_URL, search_type=SearchType.hybrid)
+            vector_db=PgVector(
+                table_name=f"{agent_id}_website_knowledge",
+                db_url=DB_URL,
+                search_type=SearchType.hybrid
+            )
         )
-    
+
         combined_knowledge_base = CombinedKnowledgeBase(
             sources=[pdf_knowledge_base, website_knowledge_base],
-            vector_db=PgVector(table_name=f"{agent_id}_combined_knowledge", db_url=DB_URL, search_type=SearchType.hybrid)
+            vector_db=PgVector(
+                table_name=f"{agent_id}_combined_knowledge",
+                db_url=DB_URL,
+                search_type=SearchType.hybrid
+            )
         )
 
         agent = Agent(
@@ -523,7 +534,10 @@ def get_async_playground_router(
             markdown=True,
             add_datetime_to_instructions=True,
             user_id=user_id,
-            storage=SqlAgentStorage(table_name=f"{agent_id}_ai_sessions", db_file="tmp/agents_sessions.db"),
+            storage=SqlAgentStorage(
+                table_name=f"{agent_id}_ai_sessions",
+                db_file="tmp/agents_sessions.db"
+            ),
             add_history_to_messages=True,
             num_history_responses=5,
         )
@@ -534,21 +548,20 @@ def get_async_playground_router(
             "role": body.role,
             "tools": body.tools,
             "description": body.description,
-            "instructions": body.instructions,
-            "urls": body.pdf_urls,
+            "instructions": body.instructions,  
+            "pdf_urls": body.pdf_urls,
+            "website_urls": body.website_urls,
             "markdown": True,
             "show_tool_calls": True,
             "add_datetime_to_instructions": True,
             "user_id": user_id
         }
-        
-        try:
-            DatabaseOperations.create_agent(db, agent_data)
 
-            agents.append(agent)
-            return {"message": f"Agent {body.name} created successfully", "agent_id": agent_id}
+        try:
+            db_agent = DatabaseOperations.create_agent(db, agent_data)
+            return {"status": "success", "agent_id": agent_id}
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error creating agent: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to create agent: {str(e)}")
     
     @playground_router.put("/update/agent/{agent_id}")
     async def update_agent(
@@ -563,49 +576,61 @@ def get_async_playground_router(
         if existing_agent.user_id != user_id:
             raise HTTPException(status_code=403, detail="Not authorized to update this agent")
         
-        instructions_str = '\n'.join(body.instructions) if body.instructions else ""
+        instructions = body.instructions if body.instructions is not None else existing_agent.instructions
+        
+        if isinstance(instructions, str):
+            instructions = [instructions]
         
         update_data = {
-            "name": body.name,
-            "role": body.role,
-            "tools": body.tools,
-            "description": body.description,
-            "instructions": instructions_str,
-            "pdf_urls": body.pdf_urls,
-            "websites": body.websites
+            "name": body.name if body.name is not None else existing_agent.name,
+            "role": body.role if body.role is not None else existing_agent.role,
+            "tools": body.tools if body.tools is not None else existing_agent.tools,
+            "description": body.description if body.description is not None else existing_agent.description,
+            "instructions": instructions,  
+            "pdf_urls": body.pdf_urls if body.pdf_urls is not None else existing_agent.pdf_urls,
+            "website_urls": body.website_urls if body.website_urls is not None else existing_agent.website_urls
         }
         
         try:
             updated_agent = DatabaseOperations.update_agent(db, agent_id, update_data)
             
             pdf_knowledge_base = PDFUrlKnowledgeBase(
-                urls=body.pdf_urls,
-                vector_db=PgVector(table_name=f"{agent_id}_pdf_knowledge", db_url=DB_URL, search_type=SearchType.hybrid)
+                urls=update_data["pdf_urls"],
+                vector_db=PgVector(
+                    table_name=f"{agent_id}_pdf_knowledge",
+                    db_url=DB_URL,
+                    search_type=SearchType.hybrid
+                )
             )
             
             website_knowledge_base = WebsiteKnowledgeBase(
-                urls=body.websites,
+                urls=update_data["website_urls"],
                 max_links=10,
-                vector_db=PgVector(table_name=f"{agent_id}_website_knowledge", db_url=DB_URL, search_type=SearchType.hybrid)
+                vector_db=PgVector(
+                    table_name=f"{agent_id}_website_knowledge",
+                    db_url=DB_URL,
+                    search_type=SearchType.hybrid
+                )
             )
             
             combined_knowledge_base = CombinedKnowledgeBase(
                 sources=[pdf_knowledge_base, website_knowledge_base],
-                vector_db=PgVector(table_name=f"{agent_id}_combined_knowledge", db_url=DB_URL, search_type=SearchType.hybrid)
+                vector_db=PgVector(
+                    table_name=f"{agent_id}_combined_knowledge",
+                    db_url=DB_URL,
+                    search_type=SearchType.hybrid
+                )
             )
-            
             
             for agent in agents:
                 if agent.agent_id == agent_id:
-                    agent.name = body.name
-                    agent.role = body.role
-                    agent.tools = [tool_map[tool] for tool in body.tools] if body.tools else None
-                    agent.description = body.description
-                    agent.instructions = body.instructions  
+                    agent.name = update_data["name"]
+                    agent.role = update_data["role"]
+                    agent.tools = [tool_map[tool] for tool in update_data["tools"]] if update_data["tools"] else None
+                    agent.description = update_data["description"]
+                    agent.instructions = instructions
                     agent.knowledge_base = combined_knowledge_base
                     break
-            
-            instructions_list = updated_agent.instructions.split('\n') if updated_agent.instructions else []
             
             response = UpdateAgentResponse(
                 message=f"Agent {agent_id} updated successfully",
@@ -616,8 +641,9 @@ def get_async_playground_router(
                     role=updated_agent.role,
                     tools=updated_agent.tools,
                     description=updated_agent.description,
-                    instructions=instructions_list,  
-                    urls=updated_agent.urls,
+                    instructions=instructions, 
+                    pdf_urls=updated_agent.pdf_urls,
+                    website_urls=updated_agent.website_urls,
                     markdown=updated_agent.markdown,
                     show_tool_calls=updated_agent.show_tool_calls,
                     add_datetime_to_instructions=updated_agent.add_datetime_to_instructions
@@ -668,7 +694,9 @@ def get_async_playground_router(
             
             try:
                 with get_db_session() as session:
-                    session.execute(text(f'DROP TABLE IF EXISTS "{agent_id}_knowledge"'))
+                    session.execute(text(f'DROP TABLE IF EXISTS "{agent_id}_pdf_knowledge"'))
+                    session.execute(text(f'DROP TABLE IF EXISTS "{agent_id}_website_knowledge"'))
+                    session.execute(text(f'DROP TABLE IF EXISTS "{agent_id}_combined_knowledge"'))
                     session.execute(text(f'DROP TABLE IF EXISTS "{agent_id}_ai_sessions"'))
             except Exception as e:
                 print(f"Warning: Failed to clean up associated tables: {str(e)}")
@@ -682,8 +710,9 @@ def get_async_playground_router(
                     role=existing_agent.role,
                     tools=existing_agent.tools,
                     description=existing_agent.description,
-                    instructions=existing_agent.instructions.split('\n') if existing_agent.instructions else [],
-                    urls=existing_agent.urls,
+                    instructions=existing_agent.instructions,
+                    pdf_urls=existing_agent.pdf_urls,
+                    website_urls=existing_agent.website_urls,
                     markdown=existing_agent.markdown,
                     show_tool_calls=existing_agent.show_tool_calls,
                     add_datetime_to_instructions=existing_agent.add_datetime_to_instructions
@@ -697,64 +726,82 @@ def get_async_playground_router(
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
     
-    @playground_router.get("/agents/reserved/", response_model=UserAgentsResponse)
-    async def get_reserved_agents():
-        """
-        Get all reserved agents.
-        
-        Returns:
-            UserAgentsResponse: List of reserved agents.
-        """
+    @playground_router.get("/agents/", response_model=UserAgentsResponse)
+    async def get_agents(
+        request: Request,
+        type: str = Query(None, description="Filter type: 'reserved' for reserved agents, 'user' for user agents, or None for both"),
+        db: Session = Depends(get_db)
+    ):
         try:
-            with open("agents.json", "r") as file:
-                agents = json.load(file)
-            
-            reserved_agents = [agent for agent in agents if agent["id"].startswith("reservered_agent_")]
-            
-            return UserAgentsResponse(agents=reserved_agents)
+            user_id = request.state.user.get("sub")  
+
+            if not user_id:
+                raise HTTPException(status_code=401, detail="Authentication required")
+
+            user_agents = []
+            reserved_agents = []
+
+            if type in [None, "user"]:
+                db_agents = DatabaseOperations.get_agents_by_user(db, user_id)
+
+                user_agents = [
+                    AgentResponse(
+                        id=agent.id,
+                        user_id=agent.user_id,
+                        name=agent.name,
+                        role=agent.role,
+                        tools=agent.tools,
+                        description=agent.description,
+                        instructions=agent.instructions if agent.instructions else [],  
+                        pdf_urls=agent.pdf_urls,
+                        website_urls=agent.website_urls,
+                        markdown=agent.markdown,
+                        show_tool_calls=agent.show_tool_calls,
+                        add_datetime_to_instructions=agent.add_datetime_to_instructions
+                    ) 
+                    for agent in db_agents
+                ]
+
+            if type in [None, "reserved"]:
+                try:
+                    with open("agents.json", "r") as file:
+                        agents_data = json.load(file)
+
+                    reserved_agents = [
+                        AgentResponse(
+                            id=agent["id"],
+                            user_id="reserved",
+                            name=agent["name"],
+                            role=agent["role"],
+                            tools=agent["tools"],
+                            description=agent["description"],
+                            instructions=agent.get("instructions", []),  
+                            pdf_urls=agent.get("pdf_urls", []),
+                            website_urls=agent.get("website_urls", []),
+                            markdown=agent.get("markdown", False),
+                            show_tool_calls=agent.get("show_tool_calls", False),
+                            add_datetime_to_instructions=agent.get("add_datetime_to_instructions", False)
+                        )
+                        for agent in agents_data if agent["id"].startswith("reserved_agent_")
+                    ]
+                except Exception as e:
+                    logger.error(f"Error loading reserved agents: {e}")
+                    reserved_agents = []
+
+            if type == "user":
+                agents = user_agents
+            elif type == "reserved":
+                agents = reserved_agents
+            else:
+                agents = user_agents + reserved_agents
+
+            return UserAgentsResponse(agents=agents)
+
+        except HTTPException as he:
+            raise he
         except Exception as e:
             logger.error(traceback.format_exc())
             return JSONResponse(status_code=500, content={"message": str(e)})
-    
-    @playground_router.get("/agents_by_user_id", response_model=UserAgentsResponse)
-    async def get_agents_by_user(
-        request : Request,
-        db: Session = Depends(get_db)
-    ):
-        """
-        Get all agents created by a specific user.
-        
-        Args:
-            user_id (str): The ID of the user whose agents to retrieve.
-            
-        Returns:
-            UserAgentsResponse: List of agents belonging to the user.
-        """
-        try:
-            user_id = request.state.user.get("sub")
-            db_agents = DatabaseOperations.get_agents_by_user(db, user_id)
-            
-            agents = [
-                AgentResponse(
-                    id=agent.id,
-                    user_id=agent.user_id,
-                    name=agent.name,
-                    role=agent.role,
-                    tools=agent.tools,
-                    description=agent.description,
-                    instructions=agent.instructions.split('\n') if agent.instructions else [],
-                    urls=agent.urls,
-                    markdown=agent.markdown,
-                    show_tool_calls=agent.show_tool_calls,
-                    add_datetime_to_instructions=agent.add_datetime_to_instructions
-                ) 
-                for agent in db_agents
-            ]
-            
-            return UserAgentsResponse(agents=agents)
-            
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
 
 
     @playground_router.get("/agent/get", response_model=List[AgentGetResponse])
@@ -830,166 +877,199 @@ def get_async_playground_router(
 
     @playground_router.post("/agent/run")
     async def agent_run(
+        request: Request,
         message: str = Form(...),
         agent_id: str = Form(...),
         stream: bool = Form(True),
         monitor: bool = Form(False),
         session_id: Optional[str] = Form(None),
-        user_id: Optional[str] = Form(None),
         files: Optional[List[UploadFile]] = File(None),
         image: Optional[UploadFile] = File(None),
     ):
-        logger.debug(f"AgentRunRequest: {message} {session_id} {user_id} {agent_id}")
-        agent = get_agent_by_id(agent_id, agents)
-        if agent is None:
-            raise HTTPException(status_code=404, detail="Agent not found")
+        try:
+            user_id = request.state.user.get("sub")
+            if not user_id:
+                raise HTTPException(status_code=401, detail="Authentication required")
 
-        if files:
-            if agent.knowledge is None:
+            logger.debug(f"AgentRunRequest: {message} {session_id} {user_id} {agent_id}")
+
+            agent = get_agent_by_id(agent_id, agents)
+            if agent is None:
+                raise HTTPException(status_code=404, detail="Agent not found")
+
+            if files and agent.knowledge is None:
                 raise HTTPException(status_code=404, detail="KnowledgeBase not found")
 
-        if session_id is not None:
-            logger.debug(f"Continuing session: {session_id}")
-        else:
-            logger.debug("Creating new session")
+            logger.debug(f"User {user_id} is running agent {agent_id}")
 
-        # Create a new instance of this agent
-        new_agent_instance = agent.deep_copy(update={"session_id": session_id})
-        if user_id is not None:
-            new_agent_instance.user_id = user_id
+            new_agent_instance = agent.deep_copy(update={"session_id": session_id, "user_id": user_id})
+            new_agent_instance.monitoring = monitor
 
-        if monitor:
-            new_agent_instance.monitoring = True
-        else:
-            new_agent_instance.monitoring = False
+            base64_image: Optional[List[Union[str, Dict]]] = None
+            if image:
+                base64_image = await process_image(image)
 
-        base64_image: Optional[List[Union[str, Dict]]] = None
-        if image:
-            base64_image = await process_image(image)
-
-        if files:
-            for file in files:
-                if file.content_type == "application/pdf":
-                    from phi.document.reader.pdf import PDFReader
-
+            if files:
+                for file in files:
                     contents = await file.read()
-                    pdf_file = BytesIO(contents)
-                    pdf_file.name = file.filename
-                    file_content = PDFReader().read(pdf_file)
-                    if agent.knowledge is not None:
-                        agent.knowledge.load_documents(file_content)
-                elif file.content_type == "text/csv":
-                    from phi.document.reader.csv_reader import CSVReader
+                    file_obj = BytesIO(contents)
+                    file_obj.name = file.filename
 
-                    contents = await file.read()
-                    csv_file = BytesIO(contents)
-                    csv_file.name = file.filename
-                    file_content = CSVReader().read(csv_file)
-                    if agent.knowledge is not None:
-                        agent.knowledge.load_documents(file_content)
-                elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                    from phi.document.reader.docx import DocxReader
+                    if file.content_type == "application/pdf":
+                        from phi.document.reader.pdf import PDFReader
+                        file_content = PDFReader().read(file_obj)
+                    elif file.content_type == "text/csv":
+                        from phi.document.reader.csv_reader import CSVReader
+                        file_content = CSVReader().read(file_obj)
+                    elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                        from phi.document.reader.docx import DocxReader
+                        file_content = DocxReader().read(file_obj)
+                    elif file.content_type == "text/plain":
+                        from phi.document.reader.text import TextReader
+                        file_content = TextReader().read(file_obj)
+                    else:
+                        raise HTTPException(status_code=400, detail="Unsupported file type")
 
-                    contents = await file.read()
-                    docx_file = BytesIO(contents)
-                    docx_file.name = file.filename
-                    file_content = DocxReader().read(docx_file)
-                    if agent.knowledge is not None:
+                    if agent.knowledge:
                         agent.knowledge.load_documents(file_content)
-                elif file.content_type == "text/plain":
-                    from phi.document.reader.text import TextReader
 
-                    contents = await file.read()
-                    text_file = BytesIO(contents)
-                    text_file.name = file.filename
-                    file_content = TextReader().read(text_file)
-                    if agent.knowledge is not None:
-                        agent.knowledge.load_documents(file_content)
-                else:
-                    raise HTTPException(status_code=400, detail="Unsupported file type")
+            if stream:
+                return StreamingResponse(
+                    chat_response_streamer(new_agent_instance, message, images=base64_image),
+                    media_type="text/event-stream",
+                )
+            else:
+                run_response = cast(
+                    RunResponse,
+                    await new_agent_instance.arun(message, images=base64_image, stream=False),
+                )
+                return run_response.model_dump_json()
 
-        if stream:
-            return StreamingResponse(
-                chat_response_streamer(new_agent_instance, message, images=base64_image),
-                media_type="text/event-stream",
-            )
-        else:
-            run_response = cast(
-                RunResponse,
-                await new_agent_instance.arun(
-                    message,
-                    images=base64_image,
-                    stream=False,
-                ),
-            )
-            return run_response.model_dump_json()
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            return JSONResponse(status_code=500, content={"message": str(e)})
 
     @playground_router.post("/agent/sessions/all")
-    async def get_agent_sessions(body: AgentSessionsRequest):
-        logger.debug(f"AgentSessionsRequest: {body}")
-        agent = get_agent_by_id(body.agent_id, agents)
-        if agent is None:
-            return JSONResponse(status_code=404, content="Agent not found.")
+    async def get_agent_sessions(request: Request, body: AgentSessionsRequest):
+        try:
+            user_id = request.state.user.get("sub")
+            if not user_id:
+                raise HTTPException(status_code=401, detail="Authentication required")
 
-        if agent.storage is None:
-            return JSONResponse(status_code=404, content="Agent does not have storage enabled.")
+            logger.debug(f"AgentSessionsRequest: {body} | User: {user_id}")
 
-        agent_sessions: List[AgentSessionsResponse] = []
-        all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=body.user_id)
-        for session in all_agent_sessions:
-            title = get_session_title(session)
-            agent_sessions.append(
-                AgentSessionsResponse(
-                    title=title,
-                    session_id=session.session_id,
-                    session_name=session.session_data.get("session_name") if session.session_data else None,
-                    created_at=session.created_at,
+            agent = get_agent_by_id(body.agent_id, agents)
+            if agent is None:
+                return JSONResponse(status_code=404, content={"message": "Agent not found."})
+
+            if agent.storage is None:
+                return JSONResponse(status_code=404, content={"message": "Agent does not have storage enabled."})
+
+            agent_sessions: List[AgentSessionsResponse] = []
+            all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=user_id)
+
+            for session in all_agent_sessions:
+                title = get_session_title(session)
+                agent_sessions.append(
+                    AgentSessionsResponse(
+                        title=title,
+                        session_id=session.session_id,
+                        session_name=session.session_data.get("session_name") if session.session_data else None,
+                        created_at=session.created_at,
+                    )
                 )
-            )
-        return agent_sessions
+
+            return agent_sessions
+
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            return JSONResponse(status_code=500, content={"message": str(e)})
 
     @playground_router.post("/agent/sessions/{session_id}")
-    async def get_agent_session(session_id: str, body: AgentSessionsRequest):
-        logger.debug(f"AgentSessionsRequest: {body}")
-        agent = get_agent_by_id(body.agent_id, agents)
-        if agent is None:
-            return JSONResponse(status_code=404, content="Agent not found.")
+    async def get_agent_session(request: Request, session_id: str, body: AgentSessionsRequest):
+        try:
+            user_id = request.state.user.get("sub")
+            if not user_id:
+                raise HTTPException(status_code=401, detail="Authentication required")
 
-        if agent.storage is None:
-            return JSONResponse(status_code=404, content="Agent does not have storage enabled.")
+            logger.debug(f"AgentSessionsRequest: {body} | User: {user_id}")
 
-        agent_session: Optional[AgentSession] = agent.storage.read(session_id, body.user_id)
-        if agent_session is None:
-            return JSONResponse(status_code=404, content="Session not found.")
+            agent = get_agent_by_id(body.agent_id, agents)
+            if agent is None:
+                return JSONResponse(status_code=404, content={"message": "Agent not found."})
 
-        return agent_session
+            if agent.storage is None:
+                return JSONResponse(status_code=404, content={"message": "Agent does not have storage enabled."})
+
+            agent_session: Optional[AgentSession] = agent.storage.read(session_id, user_id)
+            if agent_session is None:
+                return JSONResponse(status_code=404, content={"message": "Session not found."})
+
+            return agent_session
+
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            return JSONResponse(status_code=500, content={"message": str(e)})
+
 
     @playground_router.post("/agent/session/rename")
-    async def agent_rename(body: AgentRenameRequest):
-        agent = get_agent_by_id(body.agent_id, agents)
-        if agent is None:
-            return JSONResponse(status_code=404, content=f"couldn't find agent with {body.agent_id}")
+    async def agent_rename(request: Request, body: AgentRenameRequest):
+        try:
+            user_id = request.state.user.get("sub")
+            if not user_id:
+                raise HTTPException(status_code=401, detail="Authentication required")
 
-        agent.session_id = body.session_id
-        agent.rename_session(body.name)
-        return JSONResponse(content={"message": f"successfully renamed agent {agent.name}"})
+            agent = get_agent_by_id(body.agent_id, agents)
+            if agent is None:
+                return JSONResponse(status_code=404, content={"message": f"Couldn't find agent with ID {body.agent_id}"})
+
+            logger.debug(f"User {user_id} renaming session {body.session_id} to {body.name}")
+
+            agent.session_id = body.session_id
+            agent.rename_session(body.name)
+            return JSONResponse(content={"message": f"Successfully renamed agent session to {body.name}"})
+
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            return JSONResponse(status_code=500, content={"message": str(e)})
 
     @playground_router.post("/agent/session/delete")
-    async def agent_session_delete(body: AgentSessionDeleteRequest):
-        agent = get_agent_by_id(body.agent_id, agents)
-        if agent is None:
-            return JSONResponse(status_code=404, content="Agent not found.")
+    async def agent_session_delete(request: Request, body: AgentSessionDeleteRequest):
+        try:
+            user_id = request.state.user.get("sub")
+            if not user_id:
+                raise HTTPException(status_code=401, detail="Authentication required")
 
-        if agent.storage is None:
-            return JSONResponse(status_code=404, content="Agent does not have storage enabled.")
+            agent = get_agent_by_id(body.agent_id, agents)
+            if agent is None:
+                return JSONResponse(status_code=404, content={"message": "Agent not found."})
 
-        all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=body.user_id)
-        for session in all_agent_sessions:
-            if session.session_id == body.session_id:
-                agent.delete_session(body.session_id)
-                return JSONResponse(content={"message": f"successfully deleted agent {agent.name}"})
+            if agent.storage is None:
+                return JSONResponse(status_code=404, content={"message": "Agent does not have storage enabled."})
 
-        return JSONResponse(status_code=404, content="Session not found.")
+            logger.debug(f"User {user_id} requested deletion of session {body.session_id}")
+
+            all_agent_sessions: List[AgentSession] = agent.storage.get_all_sessions(user_id=user_id)
+            for session in all_agent_sessions:
+                if session.session_id == body.session_id:
+                    agent.delete_session(body.session_id)
+                    return JSONResponse(content={"message": f"Successfully deleted session {body.session_id} for agent {agent.name}"})
+
+            return JSONResponse(status_code=404, content={"message": "Session not found."})
+
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            return JSONResponse(status_code=500, content={"message": str(e)})
 
     @playground_router.get("/workflows/get")
     async def get_workflows():

@@ -24,16 +24,21 @@ playground_instance = Playground(
 )
 
 playground = playground_instance.get_app()
+
+# Add CORS middleware before the auth middleware
 playground.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS, 
-    allow_credentials=True,  
-    allow_methods=["*"],  
-    allow_headers=["*"], 
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
-playground.add_middleware(ClerkAuthMiddleware, api_key=os.getenv("CLERK_SECRET_KEY"))
+# Add auth middleware after CORS
 
+playground.add_middleware(ClerkAuthMiddleware, api_key=os.getenv("CLERK_SECRET_KEY"))
 # @playground.middleware("https")
 # async def clerk_auth_middleware(request: Request, call_next):
 #     """
