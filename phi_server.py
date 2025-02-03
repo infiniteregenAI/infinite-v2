@@ -36,29 +36,7 @@ playground.add_middleware(
     max_age=3600,  # Cache preflight requests for 1 hour
 )
 
-# Add auth middleware after CORS
-
 playground.add_middleware(ClerkAuthMiddleware, api_key=os.getenv("CLERK_SECRET_KEY"))
-# @playground.middleware("https")
-# async def clerk_auth_middleware(request: Request, call_next):
-#     """
-#     Middleware to authenticate users via Clerk JWT.
-#     """
-#     if request.url.path in ["/docs", "/redoc", "/openapi.json"]:  # Skip auth for docs
-#         return await call_next(request)
-
-#     authorization = request.headers.get("Authorization")
-#     if not authorization or not authorization.startswith("Bearer "):
-#         return JSONResponse(status_code=401, content={"detail": "Missing or invalid Authorization header"})
-
-#     token = authorization.split("Bearer ")[1]
-#     claims = await verify_token(token)
-
-#     if not claims:
-#         return JSONResponse(status_code=401, content={"detail": "Invalid token"})
-
-#     request.state.user = claims  # Attach user claims to request
-#     return await call_next(request)
 
 if __name__ == "__main__":
     serve_playground_app("phi_server:playground", host="0.0.0.0", reload=True)

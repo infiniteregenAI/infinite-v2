@@ -542,6 +542,8 @@ def get_async_playground_router(
             num_history_responses=5,
         )
         
+        agents.append(agent)
+        
         agent_data = {
             "id": agent_id,
             "name": body.name,
@@ -556,7 +558,8 @@ def get_async_playground_router(
             "add_datetime_to_instructions": True,
             "user_id": user_id
         }
-
+        
+        
         try:
             db_agent = DatabaseOperations.create_agent(db, agent_data)
             return {"status": "success", "agent_id": agent_id}
