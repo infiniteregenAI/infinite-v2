@@ -656,7 +656,7 @@ def get_async_playground_router(
             
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error updating agent: {str(e)}")
-    
+        
     @playground_router.get("/available-tools")
     async def get_available_tools():
         """
@@ -877,6 +877,30 @@ def get_async_playground_router(
         image_info = {"filename": file.filename, "content_type": file.content_type, "size": len(content)}
 
         return [encoded, image_info]
+
+        
+    @playground_router.post("/team/run")
+    async def team_run(
+        request: Request,
+        team_id:str=Form(...),
+        message : str = Form(...),
+        session_id: Optional[str] = Form(None),
+        user_id: Optional[str] = Form(None),
+        db: Session = Depends(get_db)
+    ):
+        try:
+            
+            
+            return JSONResponse(
+                status_code=200,
+                content={"message": "Team run endpoint"}
+            )
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            return JSONResponse(
+                status_code=500,
+                content={"message": "Internal server error"}
+            )
 
     @playground_router.post("/agent/run")
     async def agent_run(
