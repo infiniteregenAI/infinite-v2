@@ -746,7 +746,6 @@ def get_async_playground_router(
 
             if type in [None, "user"]:
                 db_agents = DatabaseOperations.get_agents_by_user(db, user_id)
-
                 user_agents = [
                     AgentResponse(
                         id=agent.id,
@@ -791,6 +790,7 @@ def get_async_playground_router(
                     logger.error(f"Error loading reserved agents: {e}")
                     reserved_agents = []
 
+            user_agents = list(reversed(user_agents))
             if type == "user":
                 agents = user_agents
             elif type == "reserved":
