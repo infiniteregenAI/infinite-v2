@@ -44,10 +44,10 @@ from phi.playground.schemas import (
     WorkflowRenameRequest,
     AgentCreateRequest
 )
-from schemas.database import get_db, DatabaseOperations, get_db_session
+from schemas.database import get_db, DatabaseOperations, get_db_session, TeamOperations
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-
+from schemas.teams_schema import CreateTeamRequest, TeamResponse
 
 load_dotenv()
 
@@ -1073,6 +1073,218 @@ def get_async_playground_router(
         except Exception as e:
             logger.error(traceback.format_exc())
             return JSONResponse(status_code=500, content={"message": str(e)})
+        
+    @playground_router.post("/create/team")
+    async def create_team(
+        request: Request,
+        body: CreateTeamRequest,
+        db: Session = Depends(get_db)
+    ):
+        user_id = request.state.user.get("sub")
+        team_id = "team_" + str(uuid4())
+        
+        validated_agents = []
+        if body.agent_ids:
+            for agent_id in body.agent_ids:
+                try:
+                    agent = DatabaseOperations.get_agent(db, agent_id)
+                    if agent.user_id == user_id:
+                        validated_agents.append(AgentResponse(
+                            id=agent.id,
+                            name=agent.name,
+                            description=agent.description,
+                            role=agent.role,
+                            instructions=agent.instructions,
+                            tools=agent.tools,
+                            pdf_urls=agent.pdf_urls,
+                            website_urls=agent.website_urls,
+                            markdown=agent.markdown,
+                            show_tool_calls=agent.show_tool_calls,
+                            add_datetime_to_instructions=agent.add_datetime_to_instructions,
+                            user_id=agent.user_id
+                        ))
+                except HTTPException:
+                    continue
+        
+        team_data = {
+            "id": team_id,
+            "name": body.name,
+            "description": body.description,
+            "role": body.role,
+            "instructions": body.instructions or [],
+            "tools": body.tools or [],
+            "owner_id": user_id,
+            "agent_ids": [agent.id for agent in validated_agents],
+            "is_active": True
+        }
+        
+        try:
+            db_team = TeamOperations.create_team(db, team_data)
+            
+            response = TeamResponse(
+                id=db_team.id,
+                name=db_team.name,
+                description=db_team.description,
+                role=db_team.role,
+                instructions=db_team.instructions,
+                tools=db_team.tools,
+                owner_id=db_team.owner_id,
+                agents=validated_agents,
+                is_active=db_team.is_active
+            )
+            
+            return {
+                "status": "success", 
+                "team": response,
+                "skipped_agents": len(body.agent_ids or []) - len(validated_agents)
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to create team: {str(e)}")
+
+    @playground_router.get("/teams", response_model=List[TeamResponse])
+    async def get_all_teams(
+        request: Request, 
+        db: Session = Depends(get_db)
+    ):
+        user_id = request.state.user.get("sub")
+        
+        try:
+            db_teams = TeamOperations.get_teams_by_user(db, user_id)
+            
+            teams_response = []
+            for db_team in db_teams:
+                validated_agents = []
+                if db_team.agent_ids:
+                    for agent_id in db_team.agent_ids:
+                        try:
+                            agent = DatabaseOperations.get_agent(db, agent_id)
+                            validated_agents.append(AgentResponse(
+                                id=agent.id,
+                                name=agent.name,
+                                description=agent.description,
+                                role=agent.role,
+                                instructions=agent.instructions,
+                                tools=agent.tools,
+                                pdf_urls=agent.pdf_urls,
+                                website_urls=agent.website_urls,
+                                markdown=agent.markdown,
+                                show_tool_calls=agent.show_tool_calls,
+                                add_datetime_to_instructions=agent.add_datetime_to_instructions,
+                                user_id=agent.user_id
+                            ))
+                        except HTTPException:
+                            continue
+                
+                teams_response.append(TeamResponse(
+                    id=db_team.id,
+                    name=db_team.name,
+                    description=db_team.description,
+                    role=db_team.role,
+                    instructions=db_team.instructions,
+                    tools=db_team.tools,
+                    owner_id=db_team.owner_id,
+                    agents=validated_agents,
+                    is_active=db_team.is_active
+                ))
+            
+            return teams_response
+        
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to retrieve teams: {str(e)}")
+    
+    @playground_router.put("/team/{team_id}", response_model=TeamResponse)
+    async def update_team(
+        request: Request,
+        team_id: str,
+        body: CreateTeamRequest,
+        db: Session = Depends(get_db)
+    ):
+        user_id = request.state.user.get("sub")
+        
+        try:
+            db_team = TeamOperations.get_team(db, team_id)
+            
+            if db_team.owner_id != user_id:
+                raise HTTPException(status_code=403, detail="Not authorized to update this team")
+            
+            validated_agents = []
+            if body.agent_ids:
+                for agent_id in body.agent_ids:
+                    try:
+                        agent = DatabaseOperations.get_agent(db, agent_id)
+                        if agent.user_id == user_id:
+                            validated_agents.append(AgentResponse(
+                                id=agent.id,
+                                name=agent.name,
+                                description=agent.description,
+                                role=agent.role,
+                                instructions=agent.instructions,
+                                tools=agent.tools,
+                                pdf_urls=agent.pdf_urls,
+                                website_urls=agent.website_urls,
+                                markdown=agent.markdown,
+                                show_tool_calls=agent.show_tool_calls,
+                                add_datetime_to_instructions=agent.add_datetime_to_instructions,
+                                user_id=agent.user_id
+                            ))
+                    except HTTPException:
+                        continue
+            
+            update_data = {
+                "name": body.name,
+                "description": body.description,
+                "role": body.role,
+                "instructions": body.instructions or [],
+                "tools": body.tools or [],
+                "agent_ids": [agent.id for agent in validated_agents]
+            }
+            
+            updated_team = TeamOperations.update_team(db, team_id, update_data)
+            
+            response = TeamResponse(
+                id=updated_team.id,
+                name=updated_team.name,
+                description=updated_team.description,
+                role=updated_team.role,
+                instructions=updated_team.instructions,
+                tools=updated_team.tools,
+                owner_id=updated_team.owner_id,
+                agents=validated_agents,
+                is_active=updated_team.is_active
+            )
+            
+            return response
+        
+        except HTTPException as e:
+            raise e
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to update team: {str(e)}")
+    
+    @playground_router.delete("/team/{team_id}")
+    async def delete_team(
+        request: Request, 
+        team_id: str, 
+        db: Session = Depends(get_db)
+    ):
+        user_id = request.state.user.get("sub")
+        
+        try:
+            db_team = TeamOperations.get_team(db, team_id)
+            
+            if db_team.owner_id != user_id:
+                raise HTTPException(status_code=403, detail="Not authorized to delete this team")
+            
+            TeamOperations.delete_team(db, team_id)
+            
+            return {
+                "status": "success",
+                "message": f"Team {team_id} deleted successfully"
+            }
+        
+        except HTTPException as e:
+            raise e
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to delete team: {str(e)}")
 
     @playground_router.get("/workflows/get")
     async def get_workflows():

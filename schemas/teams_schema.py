@@ -1,28 +1,23 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional, Dict, Any
 
 from schemas.agents_schema import AgentResponse
 
-#Request Models
 class CreateTeamRequest(BaseModel):
     name: str
-    agent_names: List[str]
-    instructions: List[str]
+    description: Optional[str] = None
+    role: Optional[str] = None
+    instructions: Optional[List[str]] = []
+    tools: Optional[List[str]] = []
+    agent_ids: Optional[List[str]] = []
 
-#Response Models
 class TeamResponse(BaseModel):
     id: str
-    user_id: str
     name: str
-    agents: List[AgentResponse]
+    description: Optional[str]
+    role: Optional[str]
     instructions: List[str]
-    markdown: bool
-    show_tool_calls: bool
-
-class CreateTeamResponse(BaseModel):
-    message: str
-    team: TeamResponse
-
-class RunTeamRequest(BaseModel):
-    message: str
-    team_id: str
+    tools: List[str]
+    owner_id: str
+    agents: List[AgentResponse]
+    is_active: bool
