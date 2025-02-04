@@ -53,6 +53,19 @@ class AgentDB(Base):
     add_datetime_to_instructions = Column(Boolean, default=True)
     user_id = Column(String, nullable=False, index=True)
 
+class TeamDB(Base):
+    __tablename__ = "teams"
+    
+    id = Column(String, primary_key=True, index=True)
+    name = Column(String, nullable=False, index=True)
+    description = Column(String, nullable=True)
+    role = Column(String, nullable=True)
+    instructions = Column(ARRAY(String), nullable=True, server_default='{}')
+    tools = Column(ARRAY(String), nullable=True, server_default='{}')
+    owner_id = Column(String, nullable=False, index=True)
+    agent_ids = Column(ARRAY(String), nullable=True, server_default='{}')
+    is_active = Column(Boolean, default=True)
+
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
@@ -78,7 +91,7 @@ def init_db():
     # Check if tables already exist
     existing_tables = inspector.get_table_names()
     
-    if "agents" not in existing_tables:
+    if "agents" not in existing_tables or "teams" not in existing_tables:
         try:
             Base.metadata.create_all(bind=engine)
             print("Database tables created successfully")
@@ -141,3 +154,57 @@ class DatabaseOperations:
         except Exception as e:
             db.rollback()
             raise HTTPException(status_code=500, detail=f"Failed to delete agent: {str(e)}")
+    
+class TeamOperations:
+    @staticmethod
+    def create_team(db: Session, team_data: dict) -> TeamDB:
+        try:
+            db_team = TeamDB(**team_data)
+            db.add(db_team)
+            db.commit()
+            db.refresh(db_team)
+            return db_team
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to create team: {str(e)}")
+
+    @staticmethod
+    def get_team(db: Session, team_id: str) -> Optional[TeamDB]:
+        team = db.query(TeamDB).filter(TeamDB.id == team_id).first()
+        if not team:
+            raise HTTPException(status_code=404, detail=f"Team with id {team_id} not found")
+        return team
+
+    @staticmethod
+    def get_teams_by_user(db: Session, user_id: str) -> List[TeamDB]:
+        try:
+            return db.query(TeamDB).filter(TeamDB.owner_id == user_id).all()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to fetch teams: {str(e)}")
+
+    @staticmethod
+    def update_team(db: Session, team_id: str, team_data: dict) -> TeamDB:
+        try:
+            db_team = TeamOperations.get_team(db, team_id)
+            
+            for key, value in team_data.items():
+                if hasattr(db_team, key):
+                    setattr(db_team, key, value)
+            
+            db.commit()
+            db.refresh(db_team)
+            return db_team
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to update team: {str(e)}")
+
+    @staticmethod
+    def delete_team(db: Session, team_id: str) -> bool:
+        try:
+            db_team = TeamOperations.get_team(db, team_id)
+            db.delete(db_team)
+            db.commit()
+            return True
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Failed to delete team: {str(e)}")
