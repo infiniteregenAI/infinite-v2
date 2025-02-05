@@ -197,4 +197,4 @@ def load_all_teams():
     except Exception as e:
         print(f"Database loading failed: {e}")
     
-    return all_agents , all_teams  
+    return  all_teams  
