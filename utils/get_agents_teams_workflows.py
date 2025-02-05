@@ -27,7 +27,7 @@ def load_all_workflows():
     """
     return [generate_blog_post, research_workflow]
 
-def load_all_agents():
+def load_all_agents_n_teams():
     """
     Load all agents 
     
@@ -60,15 +60,6 @@ def load_all_agents():
         gitcoin_ai,
     ] + dynamic_agents
     
-    return all_agents
-
-def load_all_teams():
-    """
-    Load all teams
-    
-    Returns:
-        list: List of teams
-    """
     with open("teams.json", "r") as teams_file:
         teams_data = json.load(teams_file)
 
@@ -101,9 +92,21 @@ def load_all_teams():
             show_tool_calls=team_data.get("show_tool_calls", True),
         )
         dynamic_teams.append(team_agent)
+    
+    test_team = Agent(
+        agent_id="test-team",
+        name="Test Team",
+        team=dynamic_agents[-3:],
+        instructions="Test Team instructions",
+        role="Team",
+        description="Test Team description",
+        task="Test Team task",
+        stream=False,
+        show_tool_calls=True,
+    )
         
     all_teams = [
-        reserved_agents_team,
-    ] + dynamic_teams
+        reserved_agents_team,test_team
+    ] + dynamic_teams 
     
-    return all_teams
+    return all_agents , all_teams  

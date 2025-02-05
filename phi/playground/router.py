@@ -8,7 +8,7 @@ import json
 from typing import Annotated
 
 from utils.constants import AVAILABLE_TOOLS
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile , Request, Depends, Query
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile , Request, Depends, Query , BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse
 from schemas.agents_schema import AgentResponse, UserAgentsResponse, UpdateAgentRequest, UpdateAgentResponse, DeleteAgentResponse
 from dotenv import load_dotenv
@@ -44,6 +44,7 @@ from phi.playground.schemas import (
     WorkflowRenameRequest,
     AgentCreateRequest
 )
+from phi.utils.teams_utils import *
 from schemas.database import get_db, DatabaseOperations, get_db_session, TeamOperations
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -467,6 +468,7 @@ def get_playground_router(
 def get_async_playground_router(
     agents: Optional[List[Agent]] = None, workflows: Optional[List[Workflow]] = None
 ) -> APIRouter:
+    agents_dict = {agent.agent_id: agent for agent in agents}
     tool_map = {
             "HackerNews": HackerNews(),
             "DuckDuckGo": DuckDuckGo(),
@@ -490,15 +492,14 @@ def get_async_playground_router(
         body: AgentCreateRequest,
         db: Session = Depends(get_db)
     ):
-        agent_id = "agent_"+str(uuid4())
+        agent_id = "agent_" + str(uuid4().hex)[:6]
         user_id = request.state.user.get("sub")
         
         pdf_knowledge_base = PDFUrlKnowledgeBase(
             urls=body.pdf_urls,
             vector_db=PgVector(
                 table_name=f"{agent_id}_pdf_knowledge",
-                db_url=DB_URL,
-                search_type=SearchType.hybrid
+                db_url=DB_URL
             )
         )
 
@@ -507,8 +508,7 @@ def get_async_playground_router(
             max_links=10,
             vector_db=PgVector(
                 table_name=f"{agent_id}_website_knowledge",
-                db_url=DB_URL,
-                search_type=SearchType.hybrid
+                db_url=DB_URL
             )
         )
 
@@ -516,8 +516,7 @@ def get_async_playground_router(
             sources=[pdf_knowledge_base, website_knowledge_base],
             vector_db=PgVector(
                 table_name=f"{agent_id}_combined_knowledge",
-                db_url=DB_URL,
-                search_type=SearchType.hybrid
+                db_url=DB_URL
             )
         )
 
@@ -543,6 +542,7 @@ def get_async_playground_router(
         )
         
         agents.insert(0, agent)
+        agents_dict[agent_id] = agent
         
         agent_data = {
             "id": agent_id,
@@ -601,8 +601,7 @@ def get_async_playground_router(
                 urls=update_data["pdf_urls"],
                 vector_db=PgVector(
                     table_name=f"{agent_id}_pdf_knowledge",
-                    db_url=DB_URL,
-                    search_type=SearchType.hybrid
+                    db_url=DB_URL
                 )
             )
             
@@ -611,8 +610,7 @@ def get_async_playground_router(
                 max_links=10,
                 vector_db=PgVector(
                     table_name=f"{agent_id}_website_knowledge",
-                    db_url=DB_URL,
-                    search_type=SearchType.hybrid
+                    db_url=DB_URL
                 )
             )
             
@@ -620,8 +618,7 @@ def get_async_playground_router(
                 sources=[pdf_knowledge_base, website_knowledge_base],
                 vector_db=PgVector(
                     table_name=f"{agent_id}_combined_knowledge",
-                    db_url=DB_URL,
-                    search_type=SearchType.hybrid
+                    db_url=DB_URL
                 )
             )
             
@@ -877,30 +874,6 @@ def get_async_playground_router(
         image_info = {"filename": file.filename, "content_type": file.content_type, "size": len(content)}
 
         return [encoded, image_info]
-
-        
-    @playground_router.post("/team/run")
-    async def team_run(
-        request: Request,
-        team_id:str=Form(...),
-        message : str = Form(...),
-        session_id: Optional[str] = Form(None),
-        user_id: Optional[str] = Form(None),
-        db: Session = Depends(get_db)
-    ):
-        try:
-            
-            
-            return JSONResponse(
-                status_code=200,
-                content={"message": "Team run endpoint"}
-            )
-        except Exception as e:
-            logger.error(traceback.format_exc())
-            return JSONResponse(
-                status_code=500,
-                content={"message": "Internal server error"}
-            )
 
     @playground_router.post("/agent/run")
     async def agent_run(
@@ -1164,7 +1137,154 @@ def get_async_playground_router(
             }
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to create team: {str(e)}")
+    
+    SYSTEM_PROMPT = """
+    You are an AI agent participating in a structured conversation with other agents. Your task is to generate a response based on the provided **topic**, **summary of past messages**, and the latest message from another agent to ensure a smooth and coherent conversation flow.
 
+    ### **Guidelines for Your Response:**
+    1. **Context Awareness:** Use the **summary** and previous messages to maintain continuity. Your response should feel natural and aligned with the ongoing discussion.
+    2. **Flow Maintenance:** Your response should directly relate to the last message from another agent. Avoid introducing unrelated topics or abruptly shifting the conversation.
+    3. **Relevance to Topic:** Ensure that your response stays aligned with the given **topic** while keeping the conversation engaging.
+    4. **Concluding the Discussion:**  
+    - If `is_concluded` is **True**, then gracefully end the conversation with a conclusive remark.
+    - If `is_concluded` is **False**, then continue the discussion in a meaningful way.
+    
+    ### **Inputs**
+    Topic : {topic}
+    
+    Summary : {summary}
+    
+    is_concluded : {is_concluded}
+    
+    ### **Output Format:**
+    Your response should be clear, engaging, and structured to contribute effectively to the conversation.
+    """
+        
+    def get_next_agent_response(
+        exchanges: dict,
+        topic : str,
+        summary:str,
+        messages : List[Dict] ,
+        prev_agent: str = None
+    ) -> dict:
+        active_agents = {k: v for k, v in exchanges.items() if v > 0}
+
+        if not active_agents:
+            return {"message": "All exchanges are completed."}
+
+        sorted_agents = sorted(active_agents.items(), key=lambda x: x[1], reverse=True)
+        
+        next_agent = None
+        for agent_id, _ in sorted_agents:
+            if agent_id != prev_agent:
+                next_agent = agent_id
+                break
+            
+        if next_agent is None : 
+            next_agent = sorted_agents[0][0]
+
+        exchanges[next_agent] -= 1
+        
+        exchanges_count = sum(1 for v in exchanges.values() if v > 0)
+        
+        is_concluded = exchanges_count == 1  
+        
+        messages.append({
+            "role":"system",
+            "content":SYSTEM_PROMPT.format(
+                topic=topic,
+                summary=summary,
+                is_concluded=is_concluded
+            )
+        })
+        
+        agent = agents_dict[next_agent]
+        
+        agent_response = agent.run(
+            messages = messages,
+            stream = False
+        )
+        
+        return next_agent , agent_response.content , exchanges , is_concluded  
+
+
+    async def stream_agent_responses(agents_exhanges, topic, messages):
+        prev_agent = None
+        for _ in range(sum(agents_exhanges.values())):
+            if prev_agent is None:
+                messages = [{"role": "user", "content": topic}]
+            
+            messages_to_send = messages[-3:] if len(messages) >= 3 else messages
+            summary = generate_conversation_summary(messages)
+            
+            prev_agent, response, exchanges, is_concluded = get_next_agent_response(
+                agents_exhanges, topic, summary, messages_to_send, prev_agent
+            )
+            
+            messages.append({"role": "assistant", "content": response})
+
+            # Yield JSON response containing agent_id and message content
+            yield f"data: {json.dumps({'agent_id': prev_agent, 'message': response})}\n\n"
+            
+            if is_concluded:
+                break
+            
+            
+    @playground_router.post("/team/run")
+    async def team_run(
+        request: Request,
+        team_id: str = Form(...),
+        topic: str = Form(...),
+        session_id: Optional[str] = Form(None),
+        db: Session = Depends(get_db),
+        background_tasks: BackgroundTasks = BackgroundTasks()
+    ):
+        try:
+            category = classify_topic(topic)
+            if category == 'gibberish':
+                return StreamingResponse(
+                    stream_response("I'm sorry, I don't understand that. Please try again."),
+                    media_type="text/event-stream"
+                ) 
+            elif category == 'greeting':
+                return StreamingResponse(
+                    greet_user(topic),
+                    media_type="text/event-stream"
+                )
+            elif category == 'valid topic':
+                team = TeamOperations.get_team(db, team_id)
+                required_agents = []
+                for agent_id in team.agent_ids:
+                    agent = DatabaseOperations.get_agent(db, agent_id)
+                    required_agents.append({
+                        "id": agent.id,
+                        "name": agent.name,
+                        "role": agent.role,
+                        "description": agent.description,
+                        "instructions": agent.instructions,
+                    })
+                
+                agents_exhanges = decide_n_distribute_exchanges(topic, required_agents)
+                messages = []
+                
+                if agents_exhanges:
+                    return StreamingResponse(
+                        stream_agent_responses(agents_exhanges, topic, messages),
+                        media_type="text/event-stream"
+                    )
+            else:
+                return JSONResponse(
+                    status_code=400,
+                    content={"message": "Unable to classify the topic."}
+                )
+        
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            return JSONResponse(
+                status_code=500,
+                content={"message": "Internal server error"}
+            )
+            
     @playground_router.get("/teams", response_model=List[TeamResponse])
     async def get_all_teams(
         request: Request, 

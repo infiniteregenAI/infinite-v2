@@ -3,19 +3,16 @@ import os
 from dotenv import load_dotenv
 from phi.playground import Playground, serve_playground_app
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import Request, FastAPI
-from fastapi.responses import JSONResponse
 from middlewares.clerk_middleware import ClerkAuthMiddleware
 
-from utils.get_agents_teams_workflows import load_all_agents , load_all_workflows , load_all_teams
+from utils.get_agents_teams_workflows import load_all_agents_n_teams , load_all_workflows 
 from schemas.database import init_db
 from utils.constants import ALLOWED_ORIGINS
 
 load_dotenv()
 init_db()
 
-all_agents = load_all_agents()
-all_teams = load_all_teams()
+all_agents , all_teams = load_all_agents_n_teams()
 all_workflows = load_all_workflows()
 
 playground_instance = Playground(
