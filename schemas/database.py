@@ -1,10 +1,13 @@
-from sqlalchemy import create_engine, Column, String, Boolean, ARRAY, JSON, inspect
+from sqlalchemy import create_engine, Column, String, Boolean, ARRAY, JSON, inspect, desc, DateTime
+from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 from typing import Generator, List, Optional
 from pydantic import BaseModel
 import os
+from uuid import uuid4
+from datetime import datetime
 from fastapi import HTTPException
 
 # Database configuration
@@ -66,6 +69,24 @@ class TeamDB(Base):
     agent_ids = Column(ARRAY(String), nullable=True, server_default='{}')
     is_active = Column(Boolean, default=True)
 
+class SessionDB(Base):
+    __tablename__ = "sessions"
+
+    id = Column(String, primary_key=True, index=True)
+    team_id = Column(String, nullable=False)
+    user_id = Column(String, nullable=False)  # Added user_id field
+    data = Column(MutableList.as_mutable(JSON), default=list)  # Fix applied here
+    created_at = Column(DateTime, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "team_id": self.team_id,
+            "user_id": self.user_id,
+            "data": self.data,
+            "created_at": self.created_at.isoformat()
+        }
+
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
@@ -87,11 +108,11 @@ def get_db_session():
 
 def init_db():
     inspector = inspect(engine)
-    
-    # Check if tables already exist
     existing_tables = inspector.get_table_names()
     
-    if "agents" not in existing_tables or "teams" not in existing_tables:
+    required_tables = {"agents", "teams", "sessions"}
+    
+    if not required_tables.issubset(set(existing_tables)):
         try:
             Base.metadata.create_all(bind=engine)
             print("Database tables created successfully")
@@ -154,7 +175,7 @@ class DatabaseOperations:
         except Exception as e:
             db.rollback()
             raise HTTPException(status_code=500, detail=f"Failed to delete agent: {str(e)}")
-    
+
 class TeamOperations:
     @staticmethod
     def create_team(db: Session, team_data: dict) -> TeamDB:
@@ -208,3 +229,40 @@ class TeamOperations:
         except Exception as e:
             db.rollback()
             raise HTTPException(status_code=500, detail=f"Failed to delete team: {str(e)}")
+    
+    @staticmethod
+    def get_session(db: Session, session_id: str) -> Optional[SessionDB]:
+        return db.query(SessionDB).filter(SessionDB.id == session_id).first()
+
+    @staticmethod
+    def create_session(db: Session,session_id:str , team_id: str, user_id: str) -> SessionDB:
+        session_data = {
+            "id": session_id,  # Generate a unique session ID
+            "team_id": team_id,
+            "user_id": user_id,  # Store user ID
+            "data": [],
+            "created_at": datetime.utcnow().isoformat()
+        }
+        db_session = SessionDB(**session_data)
+        db.add(db_session)
+        db.commit()
+        db.refresh(db_session)
+        return db_session
+
+    @staticmethod
+    def update_session(db: Session, session_id: str, response_data: dict):
+        session = db.query(SessionDB).filter(SessionDB.id == session_id).first()
+        if session:
+            if session.data is None:  # Ensure it's initialized
+                session.data = []
+            
+            session.data.append(response_data)
+            db.commit()
+            db.refresh(session)  # Ensure session is updated in memory
+        else:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+
+    @staticmethod
+    def get_sessions_by_user(db: Session, user_id: str):
+        return db.query(SessionDB).filter(SessionDB.user_id == user_id).order_by(desc(SessionDB.created_at)).all()

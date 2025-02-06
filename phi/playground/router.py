@@ -1208,14 +1208,14 @@ def get_async_playground_router(
         return next_agent , agent_response.content , exchanges , is_concluded  
 
 
-    async def stream_agent_responses(agents_exhanges, topic, messages):
+    async def stream_agent_responses(agents_exhanges, topic, messages, session_id, db: Session, background_tasks: BackgroundTasks):
         prev_agent = None
         for _ in range(sum(agents_exhanges.values())):
             if prev_agent is None:
                 messages = [{"role": "user", "content": topic}]
             
             messages_to_send = messages[-3:] if len(messages) >= 3 else messages
-            summary = generate_conversation_summary(messages)
+            summary = generate_conversation_summary(messages)   
             
             prev_agent, response, exchanges, is_concluded = get_next_agent_response(
                 agents_exhanges, topic, summary, messages_to_send, prev_agent
@@ -1223,13 +1223,16 @@ def get_async_playground_router(
             
             messages.append({"role": "assistant", "content": response})
 
-            # Yield JSON response containing agent_id and message content
-            yield f"data: {json.dumps({'agent_id': prev_agent, 'message': response})}\n\n"
+            # Store response asynchronously
+            response_data = {"agent_id": prev_agent, "content": response}
+            background_tasks.add_task(TeamOperations.update_session, db, session_id, response_data)
+
+            yield f"data: {json.dumps(response_data)}\n\n"
             
             if is_concluded:
                 break
-            
-            
+
+
     @playground_router.post("/team/run")
     async def team_run(
         request: Request,
@@ -1240,6 +1243,9 @@ def get_async_playground_router(
         background_tasks: BackgroundTasks = BackgroundTasks()
     ):
         try:
+            
+            user_id = request.state.user.get("sub")
+            
             category = classify_topic(topic)
             if category == 'gibberish':
                 return StreamingResponse(
@@ -1267,9 +1273,15 @@ def get_async_playground_router(
                 agents_exhanges = decide_n_distribute_exchanges(topic, required_agents)
                 messages = []
                 
+                # Check if session exists, otherwise create one
+                if session_id:
+                    session = TeamOperations.get_session(db, session_id)
+                    if not session:
+                        session = TeamOperations.create_session(db,session_id, team_id, user_id)
+
                 if agents_exhanges:
                     return StreamingResponse(
-                        stream_agent_responses(agents_exhanges, topic, messages),
+                        stream_agent_responses(agents_exhanges, topic, messages, session_id, db, background_tasks),
                         media_type="text/event-stream"
                     )
             else:
@@ -1284,7 +1296,22 @@ def get_async_playground_router(
                 status_code=500,
                 content={"message": "Internal server error"}
             )
-            
+
+
+    @playground_router.get("/team/sessions/{user_id}")
+    async def get_user_sessions(user_id: str, db: Session = Depends(get_db)):
+        """
+        Retrieve all session data for a given user.
+        """
+        sessions = TeamOperations.get_sessions_by_user(db, user_id)
+        if not sessions:
+            return JSONResponse(status_code=404, content={"message": "No sessions found for this user"})
+
+        return JSONResponse(
+            status_code=200,
+            content={"user_id": user_id, "sessions": [session.to_dict() for session in sessions]}
+        )
+        
     @playground_router.get("/teams", response_model=List[TeamResponse])
     async def get_all_teams(
         request: Request, 

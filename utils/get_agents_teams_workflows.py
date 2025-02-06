@@ -94,16 +94,7 @@ def load_all_agents_n_teams():
                         all_agents.append(dynamic_agent)
     except Exception as e:
         print(f"Database loading failed: {e}")
-    
-    return all_agents
 
-def load_all_teams():
-    """
-    Load all teams from both database and file system
-    
-    Returns:
-        list: List of teams
-    """
     all_teams = [reserved_agents_team]
     
     try:
@@ -197,4 +188,4 @@ def load_all_teams():
     except Exception as e:
         print(f"Database loading failed: {e}")
     
-    return  all_teams  
+    return all_agents, all_teams  
