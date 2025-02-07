@@ -103,7 +103,7 @@ class ClerkAuthMiddleware(BaseHTTPMiddleware):
                 return response
 
             # Skip authentication for docs
-            if request.url.path in ["/docs", "/redoc", "/openapi.json"]:
+            if request.url.path in ["/docs", "/redoc", "/openapi.json","/team/user-input/{session_id}"]:
                 return await call_next(request)
             
             if request.method == 'OPTIONS':

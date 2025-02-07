@@ -50,6 +50,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from schemas.teams_schema import CreateTeamRequest, TeamResponse
 
+from collections import defaultdict, deque
+from fastapi import WebSocket, WebSocketDisconnect
+
 load_dotenv()
 
 DB_URL = os.getenv("DB_URL")
@@ -468,6 +471,7 @@ def get_playground_router(
 def get_async_playground_router(
     agents: Optional[List[Agent]] = None, workflows: Optional[List[Workflow]] = None
 ) -> APIRouter:
+    user_messages_dict = defaultdict(deque)
     agents_dict = {agent.agent_id: agent for agent in agents}
     tool_map = {
             "HackerNews": HackerNews(),
@@ -1206,21 +1210,41 @@ def get_async_playground_router(
         )
         
         return next_agent , agent_response.content , exchanges , is_concluded  
+    
+    
+    @playground_router.post("/team/add-message")
+    async def add_user_message(request: Request):
+        data = await request.json()
+        session_id = data.get("session_id")
+        user_message = data.get("message")
 
+        if not session_id or not user_message:
+            return {"error": "session_id and message are required"}
 
+        user_messages_dict[session_id].append(user_message)
+        return {"success": True, "message": "User message added successfully"}
+        
     async def stream_agent_responses(agents_exhanges, topic, messages, session_id, db: Session, background_tasks: BackgroundTasks):
         prev_agent = None
+
         for _ in range(sum(agents_exhanges.values())):
             if prev_agent is None:
                 messages = [{"role": "user", "content": topic}]
-            
-            messages_to_send = messages[-3:] if len(messages) >= 3 else messages
+
             summary = generate_conversation_summary(messages)   
-            
+
+            # Check if this session has user messages
+            if user_messages_dict[session_id]:
+                while user_messages_dict[session_id]:
+                    user_message = user_messages_dict[session_id].popleft()
+                    messages.append({"role": "user", "content": user_message})
+                    
+            messages_to_send = messages[-3:] if len(messages) >= 3 else messages
+
             prev_agent, response, exchanges, is_concluded = get_next_agent_response(
                 agents_exhanges, topic, summary, messages_to_send, prev_agent
             )
-            
+
             messages.append({"role": "assistant", "content": response})
 
             # Store response asynchronously
@@ -1228,9 +1252,10 @@ def get_async_playground_router(
             background_tasks.add_task(TeamOperations.update_session, db, session_id, response_data)
 
             yield f"data: {json.dumps(response_data)}\n\n"
-            
+
             if is_concluded:
                 break
+
 
 
     @playground_router.post("/team/run")
@@ -1296,8 +1321,9 @@ def get_async_playground_router(
                 status_code=500,
                 content={"message": "Internal server error"}
             )
-
-
+    
+            
+    
     @playground_router.get("/team/sessions/{user_id}")
     async def get_user_sessions(user_id: str, db: Session = Depends(get_db)):
         """
