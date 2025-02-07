@@ -75,7 +75,7 @@ def load_all_agents_n_teams():
 
     try:
         with get_db_session() as db:
-            db_agents = DatabaseOperations.get_agents_by_user(db, user_id="*")
+            db_agents = DatabaseOperations.get_all_agents(db)
             if db_agents:
                 for agent_data in db_agents:
                     if not any(a.agent_id == agent_data.id for a in all_agents):
@@ -152,7 +152,7 @@ def load_all_agents_n_teams():
 
     try:
         with get_db_session() as db:
-            db_teams = TeamOperations.get_teams_by_user(db, user_id="*")
+            db_teams = TeamOperations.get_all_teams(db)
             if db_teams:
                 for team_data in db_teams:
                     if not any(t.agent_id == team_data.id for t in all_teams):

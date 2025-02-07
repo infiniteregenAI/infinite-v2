@@ -175,6 +175,17 @@ class DatabaseOperations:
         except Exception as e:
             db.rollback()
             raise HTTPException(status_code=500, detail=f"Failed to delete agent: {str(e)}")
+    
+    @staticmethod
+    def get_all_agents(db):
+        """
+        Retrieve all agents from the database.
+        
+        Returns:
+            list: List of agent records
+        """
+        agents = db.query(AgentDB).all()
+        return agents
 
 class TeamOperations:
     @staticmethod
@@ -266,3 +277,14 @@ class TeamOperations:
     @staticmethod
     def get_sessions_by_user(db: Session, user_id: str):
         return db.query(SessionDB).filter(SessionDB.user_id == user_id).order_by(desc(SessionDB.created_at)).all()
+    
+    @staticmethod
+    def get_all_teams(db):
+        """
+        Retrieve all teams from the database.
+        
+        Returns:
+            list: List of team records
+        """
+        teams = db.query(TeamDB).all()
+        return teams
