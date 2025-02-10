@@ -1079,33 +1079,45 @@ def get_async_playground_router(
         
     @playground_router.post("/create/team")
     async def create_team(
-        request: Request,
-        body: CreateTeamRequest,
-        db: Session = Depends(get_db)
+    request: Request,
+    body: CreateTeamRequest,
+    db: Session = Depends(get_db)
     ):
         user_id = request.state.user.get("sub")
         team_id = "team_" + str(uuid4())
+        
+        with open('agents.json', 'r') as f:
+            reserved_agents = json.load(f)
+        reserved_agent_ids = {agent['id'] for agent in reserved_agents}
         
         validated_agents = []
         if body.agent_ids:
             for agent_id in body.agent_ids:
                 try:
-                    agent = DatabaseOperations.get_agent(db, agent_id)
-                    if agent.user_id == user_id:
-                        validated_agents.append(AgentResponse(
-                            id=agent.id,
-                            name=agent.name,
-                            description=agent.description,
-                            role=agent.role,
-                            instructions=agent.instructions,
-                            tools=agent.tools,
-                            pdf_urls=agent.pdf_urls,
-                            website_urls=agent.website_urls,
-                            markdown=agent.markdown,
-                            show_tool_calls=agent.show_tool_calls,
-                            add_datetime_to_instructions=agent.add_datetime_to_instructions,
-                            user_id=agent.user_id
-                        ))
+                    if agent_id in reserved_agent_ids:
+                        reserved_agent = next(
+                            agent for agent in reserved_agents 
+                            if agent['id'] == agent_id
+                        )
+                        agent = AgentResponse(**reserved_agent)
+                        validated_agents.append(agent)
+                    else:
+                        agent = DatabaseOperations.get_agent(db, agent_id)
+                        if agent.user_id == user_id:
+                            validated_agents.append(AgentResponse(
+                                id=agent.id,
+                                name=agent.name,
+                                description=agent.description,
+                                role=agent.role,
+                                instructions=agent.instructions,
+                                tools=agent.tools,
+                                pdf_urls=agent.pdf_urls,
+                                website_urls=agent.website_urls,
+                                markdown=agent.markdown,
+                                show_tool_calls=agent.show_tool_calls,
+                                add_datetime_to_instructions=agent.add_datetime_to_instructions,
+                                user_id=agent.user_id
+                            ))
                 except HTTPException:
                     continue
         
@@ -1223,7 +1235,6 @@ def get_async_playground_router(
         if not session_id or not user_message:
             return {"error": "session_id and message are required"}
 
-        # **Run put() in a background task to avoid blocking**
         background_tasks.add_task(session_message_queues[session_id].put, user_message)
 
         return {"success": True, "message": "User message added successfully"}
@@ -1238,13 +1249,12 @@ def get_async_playground_router(
 
             summary = generate_conversation_summary(messages)   
 
-            # Check for new messages without blocking
             try:
                 while True:
                     user_message = message_queue.get_nowait()
                     messages.append({"role": "user", "content": user_message})
             except asyncio.QueueEmpty:
-                pass  # No more messages in queue
+                pass  
             
             messages_to_send = messages[-3:] if len(messages) >= 3 else messages
 
@@ -1254,7 +1264,6 @@ def get_async_playground_router(
 
             messages.append({"role": "assistant", "content": response})
 
-            # Store response asynchronously
             response_data = {"agent_id": prev_agent, "content": response}
             background_tasks.add_task(TeamOperations.update_session, db, session_id, response_data)
 
@@ -1265,7 +1274,6 @@ def get_async_playground_router(
             if is_concluded:
                 break
 
-        # Clean up the queue when done
         del session_message_queues[session_id]
 
 
@@ -1321,7 +1329,6 @@ def get_async_playground_router(
                 agents_exhanges = decide_n_distribute_exchanges(topic, required_agents)
                 messages = []
                 
-                # Check if session exists, otherwise create one
                 if session_id:
                     session = TeamOperations.get_session(db, session_id)
                     if not session:
@@ -1370,7 +1377,7 @@ def get_async_playground_router(
             db_teams = TeamOperations.get_teams_by_user(db, user_id)
             
             teams_response = []
-            for db_team in db_teams:
+            for db_team in reversed(db_teams):
                 validated_agents = []
                 if db_team.agent_ids:
                     for agent_id in db_team.agent_ids:
