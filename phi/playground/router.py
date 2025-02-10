@@ -2,6 +2,7 @@ import base64
 from io import BytesIO
 from typing import Any, List, Optional, AsyncGenerator, Dict, cast, Union, Generator
 from uuid import uuid4
+import asyncio
 import os
 import traceback
 import json 
@@ -52,6 +53,7 @@ from schemas.teams_schema import CreateTeamRequest, TeamResponse
 
 from collections import defaultdict, deque
 from fastapi import WebSocket, WebSocketDisconnect
+from asyncio import Queue
 
 load_dotenv()
 
@@ -471,7 +473,7 @@ def get_playground_router(
 def get_async_playground_router(
     agents: Optional[List[Agent]] = None, workflows: Optional[List[Workflow]] = None
 ) -> APIRouter:
-    user_messages_dict = defaultdict(deque)
+    session_message_queues: Dict[str, Queue] = defaultdict(Queue)
     agents_dict = {agent.agent_id: agent for agent in agents}
     tool_map = {
             "HackerNews": HackerNews(),
@@ -1164,7 +1166,7 @@ def get_async_playground_router(
     Your response should be clear, engaging, and structured to contribute effectively to the conversation.
     """
         
-    def get_next_agent_response(
+    async def get_next_agent_response(
         exchanges: dict,
         topic : str,
         summary:str,
@@ -1211,9 +1213,9 @@ def get_async_playground_router(
         
         return next_agent , agent_response.content , exchanges , is_concluded  
     
-    
+            
     @playground_router.post("/team/add-message")
-    async def add_user_message(request: Request):
+    async def add_user_message(request: Request, background_tasks: BackgroundTasks):
         data = await request.json()
         session_id = data.get("session_id")
         user_message = data.get("message")
@@ -1221,11 +1223,14 @@ def get_async_playground_router(
         if not session_id or not user_message:
             return {"error": "session_id and message are required"}
 
-        user_messages_dict[session_id].append(user_message)
+        # **Run put() in a background task to avoid blocking**
+        background_tasks.add_task(session_message_queues[session_id].put, user_message)
+
         return {"success": True, "message": "User message added successfully"}
-        
+    
     async def stream_agent_responses(agents_exhanges, topic, messages, session_id, db: Session, background_tasks: BackgroundTasks):
         prev_agent = None
+        message_queue = session_message_queues[session_id]
 
         for _ in range(sum(agents_exhanges.values())):
             if prev_agent is None:
@@ -1233,15 +1238,17 @@ def get_async_playground_router(
 
             summary = generate_conversation_summary(messages)   
 
-            # Check if this session has user messages
-            if user_messages_dict[session_id]:
-                while user_messages_dict[session_id]:
-                    user_message = user_messages_dict[session_id].popleft()
+            # Check for new messages without blocking
+            try:
+                while True:
+                    user_message = message_queue.get_nowait()
                     messages.append({"role": "user", "content": user_message})
-                    
+            except asyncio.QueueEmpty:
+                pass  # No more messages in queue
+            
             messages_to_send = messages[-3:] if len(messages) >= 3 else messages
 
-            prev_agent, response, exchanges, is_concluded = get_next_agent_response(
+            prev_agent, response, exchanges, is_concluded = await get_next_agent_response(
                 agents_exhanges, topic, summary, messages_to_send, prev_agent
             )
 
@@ -1253,9 +1260,13 @@ def get_async_playground_router(
 
             yield f"data: {json.dumps(response_data)}\n\n"
 
+            await asyncio.sleep(5)  
+
             if is_concluded:
                 break
 
+        # Clean up the queue when done
+        del session_message_queues[session_id]
 
 
     @playground_router.post("/team/run")
@@ -1321,8 +1332,6 @@ def get_async_playground_router(
                 status_code=500,
                 content={"message": "Internal server error"}
             )
-    
-            
     
     @playground_router.get("/team/sessions/{user_id}")
     async def get_user_sessions(user_id: str, db: Session = Depends(get_db)):

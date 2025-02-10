@@ -44,7 +44,7 @@ DECIDE_N_DISTRIBUTE_EXCHANGE_SYSTEM_PROMPT = """
 You are a conversation manager responsible for distributing speaking turns among multiple agents in a structured discussion. Your goal is to ensure a balanced, dynamic, and coherent conversation.
 
 ### **Key Instructions for Assigning Exchanges:**
-1. **Total Exchanges Limit:** The total number of exchanges should not exceed **15**.
+1. **Total Exchanges Limit:** The total number of exchanges should not exceed **15** and should not be less than **5**.It should be in the range of 5 to 15.
 2. **Relevance-Based Distribution:** Assign more exchanges to agents highly relevant to the topic and fewer (or zero) to irrelevant agents.
 3. **Balanced Turn-Taking:** Ensure that at least **two** agents receive exchanges, even if they are less relevant.
 4. **Cyclic Turn Management:**
