@@ -1294,10 +1294,22 @@ def get_async_playground_router(
                     media_type="text/event-stream"
                 )
             elif category == 'valid topic':
-                team = TeamOperations.get_team(db, team_id)
+                try:
+                    team = TeamOperations.get_team(db, team_id)
+                except Exception as e:
+                    return JSONResponse(
+                        status_code=404,
+                        content={"message": f"Team not found {e}"}
+                    )
                 required_agents = []
                 for agent_id in team.agent_ids:
-                    agent = DatabaseOperations.get_agent(db, agent_id)
+                    try:
+                        agent = DatabaseOperations.get_agent(db, agent_id)
+                    except Exception as e:
+                        return JSONResponse(
+                            status_code=404,
+                            content={"message": f"Agent not found : {e}"}
+                        )
                     required_agents.append({
                         "id": agent.id,
                         "name": agent.name,
